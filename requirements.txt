@@ -1,0 +1,19 @@
+# Data handling
+pandas
+numpy
+
+# Machine learning (ensemble models)
+scikit-learn
+xgboost
+lightgbm
+
+# Visualization
+matplotlib
+seaborn
+plotly
+
+# Dashboard
+streamlit
+
+# Notebooks
+jupyter
