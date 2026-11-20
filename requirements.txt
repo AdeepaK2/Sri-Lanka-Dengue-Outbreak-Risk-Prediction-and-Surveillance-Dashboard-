@@ -5,7 +5,6 @@ numpy
 # Machine learning (ensemble models)
 scikit-learn
 xgboost
-lightgbm
 
 # Visualization
 matplotlib
