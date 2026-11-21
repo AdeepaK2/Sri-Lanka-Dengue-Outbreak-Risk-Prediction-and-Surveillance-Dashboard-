@@ -13,8 +13,10 @@ Uses the files made by the notebooks:
     models/05_final_random_forest_model.joblib     final trained Random Forest model (notebook 05)
     models/06_xgboost_results.json                 XGBoost settings and validation scores (notebook 06, boosting)
     models/06_final_xgboost_model.json             final trained XGBoost model (notebook 06)
-    models/07_final_test_results.json              permutation importance, sensitivity check (notebook 07)
-    models/08_hybrid_rf_arima_results.json         optional: RF + ARIMA experiment (notebook 08)
+    models/07_stacking_results.json                stacking meta-model, validation scores and meta weights (notebook 07)
+    models/07_final_linear_regression_model.joblib Linear Regression base model of the stack (notebook 07)
+    models/07_stacking_meta_model.joblib           stacking meta-model (notebook 07)
+    models/08_final_test_results.json              permutation importance, sensitivity check (notebook 08)
 """
 import datetime
 import json
@@ -37,15 +39,18 @@ RF_RESULTS_PATH = ROOT / "models" / "05_random_forest_results.json"
 RF_MODEL_PATH = ROOT / "models" / "05_final_random_forest_model.joblib"
 XGB_RESULTS_PATH = ROOT / "models" / "06_xgboost_results.json"
 XGB_MODEL_PATH = ROOT / "models" / "06_final_xgboost_model.json"
-RESULTS_07_PATH = ROOT / "models" / "07_final_test_results.json"
-RESULTS_08_PATH = ROOT / "models" / "08_hybrid_rf_arima_results.json"
+STACK_RESULTS_PATH = ROOT / "models" / "07_stacking_results.json"
+LR_MODEL_PATH = ROOT / "models" / "07_final_linear_regression_model.joblib"
+META_MODEL_PATH = ROOT / "models" / "07_stacking_meta_model.joblib"
+RESULTS_08_PATH = ROOT / "models" / "08_final_test_results.json"
 
-ENSEMBLES = ["Random Forest", "XGBoost"]
+ENSEMBLES = ["Random Forest", "XGBoost", "Stacking"]
 
 st.set_page_config(page_title="Sri Lanka Dengue Dashboard", layout="wide")
 
-# chart colours (models use the same colours as notebooks 04-06)
-MODEL_COLORS = {"Persistence": "#898781", "Decision Tree": "#eb6834", "Random Forest": "#2a78d6", "XGBoost": "#1baf7a"}
+# chart colours (models use the same colours as notebooks 04-08)
+MODEL_COLORS = {"Persistence": "#898781", "Decision Tree": "#eb6834", "Linear Regression": "#8f6bb3",
+                "Random Forest": "#2a78d6", "XGBoost": "#1baf7a", "Stacking": "#d6457f"}
 BAR_COLOR = "#2a78d6"
 RISK_COLORS = {"Low": "#0ca30c", "Medium": "#fab219", "High": "#d03b3b"}
 
@@ -79,11 +84,13 @@ def load_thresholds():
 
 @st.cache_resource
 def load_models():
-    """The two final ensemble models, both trained on target weeks 2007-2023."""
+    """The final models, all trained on target weeks 2007-2023: the three stacking base models and the meta-model."""
     xgb = XGBRegressor()
     xgb.load_model(XGB_MODEL_PATH)       # notebook 06 (boosting)
     rf = joblib.load(RF_MODEL_PATH)      # notebook 05 (bagging; saved with n_jobs=1 for repeatable predictions)
-    return {"Random Forest": rf, "XGBoost": xgb}
+    lr = joblib.load(LR_MODEL_PATH)      # notebook 07 (Linear Regression base model of the stack)
+    meta = joblib.load(META_MODEL_PATH)  # notebook 07 (stacking meta-model)
+    return {"Random Forest": rf, "XGBoost": xgb, "Linear Regression": lr, "Stacking meta-model": meta}
 
 
 def load_json(path):
@@ -92,18 +99,21 @@ def load_json(path):
 
 rf_results = json.loads(RF_RESULTS_PATH.read_text())     # notebook 05 (bagging)
 xgb_results = json.loads(XGB_RESULTS_PATH.read_text())   # notebook 06 (boosting)
+stack_results = json.loads(STACK_RESULTS_PATH.read_text())  # notebook 07 (stacking)
 for key in ["features", "target", "validation_year"]:
-    assert rf_results[key] == xgb_results[key], key
+    assert rf_results[key] == xgb_results[key] == stack_results[key], key
 config = {
     "features": rf_results["features"],
     "target": rf_results["target"],
     "validation_year": rf_results["validation_year"],
-    # persistence and Decision Tree are in both files (same values); Random Forest from 05, XGBoost from 06
-    "validation_scores": {**rf_results["validation_scores"], **xgb_results["validation_scores"]},
+    # shared models have the same values in every file; Random Forest from 05, XGBoost from 06,
+    # Linear Regression and Stacking from 07
+    "validation_scores": {**rf_results["validation_scores"], **xgb_results["validation_scores"],
+                          **stack_results["validation_scores"]},
 }
-results_07 = load_json(RESULTS_07_PATH)
 results_08 = load_json(RESULTS_08_PATH)
 FEATURES = config["features"]
+BASE_MODELS = stack_results["base_models"]   # column order the meta-model was trained with
 
 weekly = load_weekly_data()
 report_dates = load_report_dates()
@@ -112,7 +122,15 @@ models = load_models()
 
 
 def predict_with(model_name, X):
-    """Predictions of one ensemble model; negative values are clipped to 0 (as in notebooks 05-07)."""
+    """Predictions of one ensemble model; negative values are clipped to 0 (as in notebooks 05-08)."""
+    if model_name == "Stacking":
+        # base predictions in the same column order as in notebook 07: RF, XGBoost (clipped at 0), Linear Regression
+        base = pd.DataFrame({
+            "Random Forest": models["Random Forest"].predict(X[FEATURES]),
+            "XGBoost": np.clip(models["XGBoost"].predict(X[FEATURES]), 0, None),
+            "Linear Regression": models["Linear Regression"].predict(X[FEATURES]),
+        }, index=X.index)[BASE_MODELS]
+        return np.clip(models["Stacking meta-model"].predict(base), 0, None)
     return np.clip(models[model_name].predict(X[FEATURES]), 0, None)
 
 
@@ -164,8 +182,8 @@ def predict_next_week(model_name):
 
 @st.cache_data
 def test_period_predictions():
-    """Final test (target weeks 2024-2026), the same rows as notebooks 05-07:
-    actual cases and the predictions of persistence, Random Forest and XGBoost."""
+    """Final test (target weeks 2024-2026), the same rows as notebooks 05-08:
+    actual cases and the predictions of persistence, Random Forest, XGBoost and Stacking."""
     test = pd.read_csv(TEST_PATH, parse_dates=["start_date", "target_date"])
     test = test[~(test["is_imputed"] | test["target_imputed"])].reset_index(drop=True)  # leave out interpolated weeks
     test["actual"] = test[config["target"]]
@@ -186,7 +204,7 @@ def score_table(test, rows=None):
     return table
 
 
-TEST_MODELS = ["Persistence", "Random Forest", "XGBoost"]
+TEST_MODELS = ["Persistence", "Random Forest", "XGBoost", "Stacking"]
 
 
 # ---------------------------------------------------------------- chart helpers
@@ -236,7 +254,8 @@ st.sidebar.divider()
 st.sidebar.markdown(f"**Latest data:** {latest_year} week {latest_week_no}, week starting {latest_date:%d %b %Y}")
 st.sidebar.caption(f"In the source report this week is dated {source_start:%d %b} - {source_end:%d %b %Y}. "
                    "Notebook 02 re-spaced all weeks to exactly 7 days, which moved some 2026 dates by 1-2 days.")
-st.sidebar.markdown("**Models:** Random Forest and XGBoost, both trained on target weeks 2007-2023")
+st.sidebar.markdown("**Models:** Random Forest (bagging), XGBoost (boosting) and Stacking, all trained on "
+                    "target weeks 2007-2023")
 st.sidebar.caption("Data: Weekly Epidemiological Reports, Epidemiology Unit, Ministry of Health, Sri Lanka, "
                    "compiled in the denguedatahub repository (Dr. Thiyanga S. Talagala).")
 
@@ -348,17 +367,17 @@ with tab_trends:
 
 with tab_prediction:
     model_name = st.radio("Prediction model", ENSEMBLES, horizontal=True,
-                          help="Both models are trained on target weeks 2007-2023. "
+                          help="All three models are trained on target weeks 2007-2023. "
                                "See the Model comparison tab for how each performed on 2024-2026.")
     forecast = predict_next_week(model_name)
     row = forecast.loc[district]
-    other_model = [name for name in ENSEMBLES if name != model_name][0]
+    other_models = [name for name in ENSEMBLES if name != model_name]
+    other_text = " and ".join(f"{name} predicts {row[name]:,}" for name in other_models)
 
     st.subheader(f"Next-week prediction for {district}")
     st.caption(f"Predicted with the final {model_name} model from the latest week in the dataset "
-               f"(starting {row['start_date']:%d %b %Y}). For comparison, {other_model} predicts "
-               f"{row[other_model]:,} cases. This is a forecast for the week starting {row['target_date']:%d %b %Y}, "
-               "not for the current week.")
+               f"(starting {row['start_date']:%d %b %Y}). For comparison, {other_text} cases. "
+               f"This is a forecast for the week starting {row['target_date']:%d %b %Y}, not for the current week.")
 
     col1, col2, col3 = st.columns(3)
     col1.metric(f"Reported cases, week starting {row['start_date']:%d %b}", f"{row['cases']:,}")
@@ -428,26 +447,29 @@ with tab_prediction:
 # ---------------------------------------------------------------- tab 4: model comparison
 
 with tab_models:
-    st.subheader("Random Forest (bagging) vs XGBoost (boosting)")
+    st.subheader("Bagging (Random Forest) vs boosting (XGBoost) vs stacking")
     st.markdown("""
-Both models are **ensembles of decision trees** (a single tree asks a series of yes/no questions about the
-features). They combine their trees in opposite ways:
+Bagging and boosting combine many **decision trees** of the same kind (a single tree asks a series of yes/no
+questions about the features). Stacking combines **different** models: a meta-model learns how to weigh the
+predictions of a Random Forest, XGBoost and a Linear Regression.
 
-| | Random Forest: bagging | XGBoost: boosting |
-|---|---|---|
-| How the trees are built | independently, each on a bootstrap sample (rows drawn at random with replacement), with a random subset of features at each split | one after another; each new tree is fitted to the errors the earlier trees still make |
-| How predictions are combined | **average** of all trees | **sum** of all trees, each scaled down by the learning rate |
-| Main effect | reduces **variance**: averaging cancels the overfitting of single deep trees | reduces **bias**: keeps correcting what is still wrong, but can over-fit rare patterns |
-| Prediction range | always within the range of past training values | can go beyond it (and below 0, so predictions are clipped) |
-| Settings used here | 200 trees, at least 10 rows per leaf | 400 rounds, tree depth 2, learning rate 0.05 |
+| | Bagging: Random Forest | Boosting: XGBoost | Stacking |
+|---|---|---|---|
+| Base models | many models of the **same** type (trees) | many models of the **same** type (small trees) | a few models of **different** types (Random Forest, XGBoost, Linear Regression) |
+| How they are trained | **independently, in parallel**, each on a bootstrap sample | **sequentially**, each one fitted to the errors of the models before it | base models first, then a **meta-model** trained on their (walk-forward) predictions |
+| How predictions are combined | **average** of all trees | **weighted sum** of all trees, scaled by the learning rate | **learned** by the meta-model |
+| Mainly reduces | **variance** (overfitting) | **bias** (underfitting) | can reduce both, if the base models make different errors |
+| Main risk | cannot predict beyond the range of past values | can over-fit rare patterns; needs careful settings | leakage if the meta-model learns from in-sample predictions; more complex |
+| Settings used here | 200 trees, at least 10 rows per leaf | 400 rounds, tree depth 2, learning rate 0.05 | Linear Regression meta-model with non-negative weights |
 
 **Persistence** (next week's cases = this week's cases) is the baseline that every model must beat. A **Decision
-Tree** (one tree, depth 5) is shown on the validation year as the single-tree reference. All models use the same 11
-features, the same leakage check and the same chronological split.
+Tree** (one tree, depth 5) and a **Linear Regression** (also the third base model of the stack) are shown on the
+validation year as simple references. All models use the same 11 features, the same leakage check and the same
+chronological split.
 """)
 
     scores = pd.DataFrame(config["validation_scores"]).T
-    scores = scores.loc[["Persistence", "Decision Tree", "Random Forest", "XGBoost"]]
+    scores = scores.loc[["Persistence", "Decision Tree", "Linear Regression", "Random Forest", "XGBoost", "Stacking"]]
     scores["MAE vs persistence (%)"] = 100 * (scores["MAE"] / scores.loc["Persistence", "MAE"] - 1)
     scores["RMSE vs persistence (%)"] = 100 * (scores["RMSE"] / scores.loc["Persistence", "RMSE"] - 1)
 
@@ -471,12 +493,12 @@ features, the same leakage check and the same chronological split.
     st.caption("MAE = average size of the error, in cases per district-week. "
                "RMSE = like MAE, but large errors count more. Negative % = smaller error than persistence.")
 
-    valid_rf, valid_xgb = scores.loc["Random Forest", "MAE"], scores.loc["XGBoost", "MAE"]
-    valid_best = "Random Forest" if valid_rf < valid_xgb else "XGBoost"
-    st.markdown(f"On {config['validation_year']}, **{valid_best}** had the slightly lower MAE "
-                f"(XGBoost {valid_xgb:.2f}, Random Forest {valid_rf:.2f}: a difference of "
-                f"{abs(valid_rf - valid_xgb):.2f} cases per district-week). "
-                "A difference this small on a single year is not enough to call one model better, so both were "
+    valid_mae = scores.loc[ENSEMBLES, "MAE"]
+    valid_best = valid_mae.idxmin()
+    st.markdown(f"On {config['validation_year']}, **{valid_best}** had the lowest MAE of the three ensembles ("
+                + ", ".join(f"{name} {valid_mae[name]:.2f}" for name in ENSEMBLES)
+                + f": a spread of only {valid_mae.max() - valid_mae.min():.2f} cases per district-week). "
+                "A difference this small on a single year is not enough to call one model better, so all three were "
                 "evaluated on the untouched test set below.")
 
     # ------------------------------------------------ final test
@@ -484,7 +506,7 @@ features, the same leakage check and the same chronological split.
     test = test_period_predictions()
     test_scores = score_table(test)
     st.markdown("#### 2. Final test 2024-2026 (unseen data)")
-    st.markdown(f"Both ensembles were retrained on target weeks 2007-2023 with the settings fixed on "
+    st.markdown(f"All three ensembles were retrained on target weeks 2007-2023 with the settings fixed on "
                 f"{config['validation_year']} and scored once on the **same {len(test):,} district-weeks** "
                 f"(target weeks {test['target_date'].min():%d %b %Y} to {test['target_date'].max():%d %b %Y}). "
                 "Nothing was tuned on these weeks.")
@@ -535,7 +557,7 @@ features, the same leakage check and the same chronological split.
     def importance_chart(table, title, x_title):
         order = table.sort_values("Random Forest").index
         fig = go.Figure()
-        for name in ENSEMBLES:
+        for name in [n for n in ENSEMBLES if n in table.columns]:
             fig.add_trace(go.Bar(y=order, x=table.loc[order, name], orientation="h", name=name,
                                  marker_color=MODEL_COLORS[name], hovertemplate=f"{name}: %{{x:.3f}}<extra></extra>"))
         fig.update_layout(title=title, barmode="group", hovermode="closest")
@@ -551,9 +573,9 @@ features, the same leakage check and the same chronological split.
     col1, col2 = st.columns(2)
     col1.plotly_chart(importance_chart(builtin, "Built-in importance (training data)", "share of total importance"),
                       width="stretch")
-    if results_07:
-        permutation = pd.DataFrame(results_07["feature_importance"]).T.rename(columns={
-            "Random Forest (test MAE increase)": "Random Forest", "XGBoost (test MAE increase)": "XGBoost"})
+    if results_08:
+        permutation = pd.DataFrame(results_08["feature_importance"]).T.rename(columns={
+            f"{name} (test MAE increase)": name for name in ENSEMBLES})
         col2.plotly_chart(importance_chart(permutation[ENSEMBLES], "Permutation importance (test set)",
                                            "test MAE increase when shuffled (cases)"),
                           width="stretch")
@@ -561,8 +583,9 @@ features, the same leakage check and the same chronological split.
 **How to read these charts (cautions)**
 - *Built-in importance* is the Random Forest's **impurity** importance and XGBoost's **gain**. Both are measured on
   the training data, are on different scales, and favour features with many distinct values; compare the **ranking**,
-  not the numbers.
-- *Permutation importance* (notebook 07) shuffles one feature in the test data and measures how much the error grows.
+  not the numbers. Stacking has no built-in importance over the 11 features (its meta-model only sees the three base
+  predictions).
+- *Permutation importance* (notebook 08) shuffles one feature in the test data and measures how much the error grows.
   It is measured on unseen data and is usually more reliable.
 - The lag and moving-average features are strongly **correlated**, so they share importance: a feature can look
   unimportant because another one carries the same information.
@@ -573,24 +596,23 @@ features, the same leakage check and the same chronological split.
     st.divider()
     st.markdown("#### 5. Interpretation (based only on the measured results)")
 
-    rf_scores, xgb_scores = test_scores.loc["Random Forest"], test_scores.loc["XGBoost"]
+    ensemble_scores = test_scores.loc[ENSEMBLES]
+    best_mae, best_rmse = ensemble_scores["MAE"].idxmin(), ensemble_scores["RMSE"].idxmin()
     lines = []
-    if rf_scores["MAE"] < xgb_scores["MAE"] and rf_scores["RMSE"] < xgb_scores["RMSE"]:
-        winner, loser = "Random Forest", "XGBoost"
-    elif xgb_scores["MAE"] < rf_scores["MAE"] and xgb_scores["RMSE"] < rf_scores["RMSE"]:
-        winner, loser = "XGBoost", "Random Forest"
-    else:
-        winner = loser = None
-
-    if winner:
-        lines.append(f"- On the unseen 2024-2026 weeks, **{winner} generalised better than {loser}**: lower MAE "
-                     f"({test_scores.loc[winner, 'MAE']:.2f} vs {test_scores.loc[loser, 'MAE']:.2f}) and lower RMSE "
-                     f"({test_scores.loc[winner, 'RMSE']:.2f} vs {test_scores.loc[loser, 'RMSE']:.2f}).")
+    if best_mae == best_rmse:
+        winner = best_mae
+        others = [name for name in ENSEMBLES if name != winner]
+        lines.append(f"- On the unseen 2024-2026 weeks, **{winner} generalised best** of the three ensembles: lowest MAE "
+                     f"({ensemble_scores.loc[winner, 'MAE']:.2f}; "
+                     + ", ".join(f"{name} {ensemble_scores.loc[name, 'MAE']:.2f}" for name in others)
+                     + f") and lowest RMSE ({ensemble_scores.loc[winner, 'RMSE']:.2f}; "
+                     + ", ".join(f"{name} {ensemble_scores.loc[name, 'RMSE']:.2f}" for name in others) + ").")
         if winner != valid_best:
-            lines.append(f"- This reverses the {config['validation_year']} validation ranking, where {valid_best} "
+            lines.append(f"- This differs from the {config['validation_year']} validation ranking, where {valid_best} "
                          "was very slightly ahead: the small validation lead did not carry over to new years.")
     else:
-        lines.append("- MAE and RMSE rank the two ensembles differently, so neither generalised clearly better.")
+        lines.append(f"- MAE and RMSE rank the ensembles differently (lowest MAE: {best_mae}, lowest RMSE: {best_rmse}), "
+                     "so no single ensemble generalised clearly best.")
 
     for name in ENSEMBLES:
         mae_change = test_scores.loc[name, "MAE vs persistence (%)"]
@@ -607,27 +629,26 @@ features, the same leakage check and the same chronological split.
                      f"Lower MAE than persistence in: {', '.join(better_years) or 'none'}; "
                      f"not in: {', '.join(worse_years) or 'none'}.")
 
-    lines.append("- The largest errors of both ensembles are at the peaks of the 2026 outbreak, where they predicted "
+    weights = stack_results["meta_weights"]
+    top_base = max(weights, key=weights.get)
+    lines.append(f"- **What the stacking meta-model relied on** ({stack_results['meta_weights_kind']}): "
+                 + ", ".join(f"{name} {weights[name]:.3f}" for name in BASE_MODELS)
+                 + f". It mostly follows **{top_base}**. The Random Forest and XGBoost made almost the same errors in "
+                 "the years the meta-model learned from, so combining them added little; the different information "
+                 "came from the other base model (notebook 07, section 9; notebook 08, section 5.6).")
+    lines.append("- The largest errors of the tree ensembles are at the peaks of the 2026 outbreak, where they predicted "
                  "too many cases after the peak. XGBoost overshot most, because it learned from a few extreme 2017 "
-                 "weeks that a large weekly jump is followed by an even higher week (notebook 07, section 5).")
+                 "weeks that a large weekly jump is followed by an even higher week (notebook 08, section 5).")
     lines.append("- The results come from one test period dominated by one large outbreak, without a statistical "
                  "significance test, so small differences should not be over-interpreted.")
     st.markdown("\n".join(lines))
 
-    if results_07:
-        with st.expander("Data-quality check: duplicated weeks (notebook 07, section 7)"):
-            sensitivity = results_07["sensitivity_without_duplicated_weeks"]
+    if results_08:
+        with st.expander("Data-quality check: duplicated weeks (notebook 08, section 7)"):
+            sensitivity = results_08["sensitivity_without_duplicated_weeks"]
             st.markdown(f"Notebook 02 found pairs of consecutive weeks with identical counts in all 26 reporting areas "
                         f"(probably the same report copied twice). Two pairs fall in the test period, where persistence "
                         f"gets a perfect score on the copied week. The table re-scores the same predictions without the "
                         f"rows that use a duplicated week ({sensitivity['rows']:,} of {len(test):,} rows remain). "
                         "The official test results above include all rows.")
             st.dataframe(pd.DataFrame(sensitivity["scores"]).T.loc[TEST_MODELS].round(2), width="stretch")
-
-    if results_08:
-        with st.expander("Experimental extension: Random Forest + ARIMA hybrid (notebook 08)"):
-            st.markdown("An ARIMA(1,0,0) model predicts next week's Random Forest error from its recent errors, and the "
-                        "hybrid adds that correction to the Random Forest prediction. ARIMA was fitted only on "
-                        "out-of-sample 2023 errors and applied week by week on the test set using only errors already "
-                        "known at that time. The hybrid is **not** used for the predictions in this dashboard.")
-            st.dataframe(pd.DataFrame(results_08["test_scores"]).T.round(2), width="stretch")

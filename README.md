@@ -1,6 +1,6 @@
 # Sri-Lanka-Dengue-Outbreak-Risk-Prediction-and-Surveillance-Dashboard-
 
-Ensemble machine learning (Random Forest and XGBoost) for one-week-ahead forecasting of dengue cases in Sri Lanka, with a Streamlit surveillance dashboard.
+Ensemble machine learning (bagging (Random Forest), boosting (XGBoost) and stacking) for one-week-ahead forecasting of dengue cases in Sri Lanka, with a Streamlit surveillance dashboard.
 
 ## 1. Problem statement and objectives
 
@@ -10,10 +10,9 @@ Dengue is a major public-health problem in Sri Lanka, with large outbreaks such 
 
 **Objectives**
 1. Clean and validate the Sri Lankan weekly dengue dataset and build leakage-free features.
-2. Compare **bagging (Random Forest)** and **boosting (XGBoost)** against simple baselines (persistence and a single Decision Tree) using a strict chronological evaluation.
+2. Compare **bagging (Random Forest)**, **boosting (XGBoost)** and **stacking** (Random Forest + XGBoost + Linear Regression) against simple baselines (persistence, a single Decision Tree and Multiple Linear Regression) using a strict chronological evaluation.
 3. Find out *why* the models succeed or fail, especially during outbreaks.
-4. Test whether a **hybrid** (Random Forest + ARIMA) improves the forecasts.
-5. Present the data, forecasts, relative risk levels and model comparison in a **Streamlit dashboard**.
+4. Present the data, forecasts, relative risk levels and model comparison in a **Streamlit dashboard**.
 
 ## 2. Dataset Source and Acknowledgment
 
@@ -71,96 +70,96 @@ There is one row per reporting area and week. Every feature uses only the **curr
 | Set | Target weeks | Rows (after the leakage rule) | Used for |
 |---|---|---|---|
 | Training | 2007-12-29 to 2022-12-31 | 20,332 | fitting the models while choosing settings |
-| Validation | 2023-01-07 to 2023-12-30 | 1,352 | comparing settings and models (notebooks 04-06) |
-| Final training | 2007-12-29 to 2023-12-30 | 21,684 | refitting the chosen settings (notebooks 05-06) |
+| Validation | 2023-01-07 to 2023-12-30 | 1,352 | comparing settings and models (notebooks 04-07) |
+| Final training | 2007-12-29 to 2023-12-30 | 21,684 | refitting the chosen settings (notebooks 05-07) |
 | **Test** | 2024-01-06 to 2026-08-29 | **3,508** | final evaluation only; never used for any decision |
 
-The split is chronological: models always learn from the past and are evaluated on the future.
+The split is chronological: models always learn from the past and are evaluated on the future. For stacking (notebook 07), the base models' predictions for 2016-2023 are made walk-forward: each year is predicted by base models trained on earlier years only.
 
 ## 6. Models and hyperparameters
 
-All settings were chosen on the **2023 validation year only** (notebook 04: Decision Tree, notebook 05: Random Forest, notebook 06: XGBoost), from a few simple candidate settings per model. `random_state = 42` is used everywhere.
+All settings were chosen on the **2023 validation year only** (notebook 04: Decision Tree, notebook 05: Random Forest, notebook 06: XGBoost, notebook 07: stacking meta-model), from a few simple candidate settings per model. `random_state = 42` is used everywhere.
 
 | Model | Type | Settings | Chosen from |
 |---|---|---|---|
 | Persistence | baseline | next week = this week | - |
 | Decision Tree | single tree | `max_depth=5` | no limit, 10, 5 |
+| Linear Regression | baseline / stacking base model | `LinearRegression()` (multiple linear regression on the 11 features) | - (no settings) |
 | Random Forest | bagging | `n_estimators=200`, `min_samples_leaf=10` | default (100 trees); 200 trees with `min_samples_leaf=10`; 200 trees with `max_depth=10` |
 | XGBoost | boosting | `n_estimators=400`, `max_depth=2`, `learning_rate=0.05` | (100, 6, 0.3), (200, 3, 0.1), (400, 2, 0.05) |
+| Stacking | stacking | RF + XGB + LR → meta-model, chosen on 2023: `LinearRegression(positive=True)` | Random Forest meta-model (100 trees); Linear Regression meta-model (`positive=True`) |
 
-XGBoost predictions are clipped at 0. A Random Forest cannot predict below 0.
+XGBoost and stacking predictions are clipped at 0. A Random Forest cannot predict below 0. The Linear Regression is used without clipping.
 
-## 7. Bagging vs boosting
+## 7. Bagging vs boosting vs stacking
 
-| | Bagging (Random Forest) | Boosting (XGBoost) |
-|---|---|---|
-| Training | many deep trees built **independently**, each on a bootstrap sample with random feature subsets | shallow trees built **one after another**, each fitted to the errors left by the previous trees |
-| Combination | **average** of the trees | **sum** of the trees, scaled by the learning rate |
-| Mainly reduces | **variance** (overfitting of single trees) | **bias** (underfitting) |
-| Main risk | cannot predict outside the range of training targets; large models | needs careful tuning; can fit rare patterns too strongly |
+| | Bagging | Boosting | Stacking |
+|---|---|---|---|
+| Base models | many models of the **same** type (here: trees) | many models of the **same** type (here: small trees) | a few models of **different** types |
+| How they are trained | **independently, in parallel**, each on a bootstrap sample | **sequentially**, each one fitted to the errors of the models before it | base models first, then a **meta-model** trained on their predictions |
+| How predictions are combined | **average** (regression) or majority vote (classification) | **weighted sum** of all models | **learned** by the meta-model |
+| Mainly reduces | **variance** (overfitting) | **bias** (underfitting) | can reduce both, if the base models make different errors |
+| Main risk | cannot predict beyond the range of past values | can overfit rare patterns; needs careful settings | **leakage** if the meta-model is trained on predictions for rows the base models were trained on; more complex |
+| In this project | Random Forest (notebook 05) | XGBoost (notebook 06) | RF + XGBoost + Linear Regression (notebook 07) |
 
 ## 8. Results
 
-### 8.1 Validation (2023, notebooks 04-06; used to choose the settings)
+### 8.1 Validation (2023, notebooks 04-07; used to choose the settings)
 
 | Model | MAE | RMSE |
 |---|---|---|
 | Persistence | 18.17 | 41.82 |
 | Decision Tree | 18.96 | 43.01 |
+| Linear Regression | **17.93** | **40.24** |
 | Random Forest | 18.14 | 42.32 |
-| XGBoost | **18.10** | **41.34** |
+| XGBoost | 18.10 | 41.34 |
+| Stacking | 18.11 | 40.83 |
 
-XGBoost has the lowest validation scores, but its lead over the Random Forest (0.04 cases per district-week) is far too small to call it better.
+On 2023 all models except the Decision Tree are within 1.5% of persistence in MAE. XGBoost has the lowest MAE of the three ensembles, but its lead (0.04 cases per district-week over the Random Forest) is far too small to call it better.
 
-### 8.2 Final test (2024-2026, notebooks 05-07)
+### 8.2 Final test (2024-2026, notebooks 05-08)
 
-Each ensemble is tested in its own notebook (05 Random Forest, 06 XGBoost), and notebook 07 compares them. All three models are evaluated on the same 3,508 rows. MAE and RMSE are in cases per district-week. Negative percentages mean a smaller error than persistence.
+Each ensemble is tested in its own notebook (05 Random Forest, 06 XGBoost, 07 Stacking), and notebook 08 compares them. All models are evaluated on the same 3,508 rows. MAE and RMSE are in cases per district-week. Negative percentages mean a smaller error than persistence.
 
 | Model | Test MAE | Test RMSE | MAE vs persistence | RMSE vs persistence |
 |---|---|---|---|---|
 | Persistence | 12.63 | 29.93 | - | - |
-| Random Forest | **12.53** | 33.63 | **-0.8%** | +12.4% |
+| Linear Regression (stacking base model) | **11.90** | **26.95** | **-5.8%** | **-10.0%** |
+| Random Forest | 12.53 | 33.63 | -0.8% | +12.4% |
 | XGBoost | 13.22 | 39.19 | +4.6% | +30.9% |
+| Stacking | 12.18 | 27.72 | -3.6% | -7.4% |
 
-| Test year | Mean cases per district-week | Persistence MAE | Random Forest MAE | XGBoost MAE |
-|---|---|---|---|---|
-| 2024 | 37.1 | 10.45 | 9.53 | 9.47 |
-| 2025 | 37.6 | 8.68 | 8.31 | 8.27 |
-| 2026 (to August) | 98.9 | 22.93 | 24.66 | 27.82 |
+| Test year | Mean cases per district-week | Persistence MAE | Linear Regression MAE | Random Forest MAE | XGBoost MAE | Stacking MAE |
+|---|---|---|---|---|---|---|
+| 2024 | 37.1 | 10.45 | 9.97 | 9.53 | 9.47 | 10.24 |
+| 2025 | 37.6 | 8.68 | 8.61 | 8.31 | 8.27 | 8.63 |
+| 2026 (to August) | 98.9 | 22.93 | 20.66 | 24.66 | 27.82 | 21.42 |
 
-- By MAE, the Random Forest is the best model in 15 of the 26 reporting areas, persistence in 6 and XGBoost in 5. The Random Forest beats XGBoost in 18 areas.
-- The 37 district-weeks with more than 500 cases (1.1% of the test rows) account for 68% of XGBoost's squared error, 63% of the Random Forest's and 50% of persistence's.
+- Among the three ensembles, **Stacking has the lowest test MAE and RMSE** and is the only one that beats persistence on both. Linear Regression on its own scored slightly better still (notebook 07).
+- By MAE (comparing persistence and the three ensembles), the Random Forest is the best model in 13 of the 26 reporting areas, XGBoost in 5, Stacking in 4 and persistence in 4. Stacking is best in the three largest districts (Colombo, Gampaha, Kandy). The Random Forest beats XGBoost in 18 areas.
+- The 37 district-weeks with more than 500 cases (1.1% of the test rows) account for 68% of XGBoost's squared error, 63% of the Random Forest's, 50% of persistence's and 47% of Stacking's.
 
-**Sensitivity check (duplicated weeks).** On the 52 test rows whose target week is an exact copy of the current week, persistence scores a perfect error of 0. Without the 130 test rows that use a duplicated week, the MAE changes are: Random Forest -4.0% vs persistence, XGBoost +2.1%. Both ensembles are still worse on RMSE. The official results above include all rows.
-
-### 8.3 Experimental hybrid: Random Forest + ARIMA (notebook 08)
-
-An ARIMA(1,0,0) model predicts next week's Random Forest error from the recent errors. It is fitted only on out-of-sample 2023 errors, applied week by week, uses only errors already known at prediction time, and is never refitted on the test weeks.
-
-| Model | Test MAE | Test RMSE |
-|---|---|---|
-| Random Forest | 12.53 | 33.63 |
-| RF + ARIMA | 12.96 | 35.27 |
-
-This is a **negative result**. The Random Forest's errors are almost uncorrelated from one week to the next (median lag-1 autocorrelation about 0 in 2023), so the ARIMA correction mostly adds noise. The hybrid is not used in the dashboard.
+**Sensitivity check (duplicated weeks).** On the 52 test rows whose target week is an exact copy of the current week, persistence scores a perfect error of 0. Without the 130 test rows that use a duplicated week, the MAE changes are: Random Forest -4.0% vs persistence, Stacking -3.6%, XGBoost +2.1%. Stacking stays clearly better on RMSE (-7.1%); both tree ensembles are still worse than persistence on RMSE. The official results above include all rows.
 
 ## 9. Key findings
 
 1. **Random Forest generalised better than XGBoost** on the unseen years: it had lower MAE and RMSE overall and a much lower RMSE in the 2026 outbreak. XGBoost's tiny validation lead did not carry over, which shows why an untouched test set is needed.
-2. **Neither ensemble clearly beats persistence.** Both improve on it in the moderate years 2024-2025 (MAE about 4-9% lower), but both are worse during the 2026 outbreak and have a higher overall RMSE.
+2. **Neither tree ensemble clearly beats persistence.** Both improve on it in the moderate years 2024-2025 (MAE about 4-9% lower), but both are worse during the 2026 outbreak and have a higher overall RMSE.
 3. **Why XGBoost does worse:** only 99 training weeks had more than 500 cases, and 69 of them come from the 2017 epidemic. In 2017, large weekly jumps at high levels were followed by even higher weeks. In July 2026, Colombo went from 1,264 to 1,625 cases, and XGBoost predicted about 2,265 against an actual 1,330. The jump feature (`weekly_case_change`) alone added about +759 cases. Boosting adds up the contributions of correlated features, so a pattern learned from a few rows gets amplified. The Random Forest averages at least 10 past rows per leaf and stays within past values, so it overshoots less.
-4. **What the models use:** both depend mostly on `current_week_cases` and the 4-week moving average, with permutation importance measured on the test data. They have essentially learned a smoothed persistence rule, which is why they are so close to it.
+4. **What the models use:** both tree ensembles depend mostly on `current_week_cases` and the 4-week moving average, with permutation importance measured on the test data. They have essentially learned a smoothed persistence rule, which is why they are so close to it.
+5. **Stacking had the best test scores of the three ensembles, but not because it combined bagging and boosting.** In the years the meta-model learned from (walk-forward 2016-2023), the Random Forest and XGBoost made almost the same errors (correlation 0.98), so combining them added no information. The meta-model gave nearly all its weight to the Linear Regression base model (1.007; XGBoost 0.034; Random Forest 0), whose errors were different and which handled outbreaks better because, unlike trees, it is not limited to past values. Stacking beat persistence on both MAE (-3.6%) and RMSE (-7.4%), mainly thanks to the 2026 outbreak, but Linear Regression alone was slightly better (MAE 11.90, RMSE 26.95).
 
 ## 10. Methodology checks
 
 | Check | Result |
 |---|---|
 | Data leakage through interpolated weeks | Prevented: rows with an interpolated current or target week are removed (52 training rows, 106 test rows). |
-| Target in the features / target alignment | Not in the features (asserted); the target is exactly the following week (asserted in notebooks 03 and 07). |
+| Target in the features / target alignment | Not in the features (asserted); the target is exactly the following week (asserted in notebooks 03 and 05-08). |
+| Stacking leakage | The meta-model is trained only on walk-forward base predictions: each year 2016-2023 is predicted by base models trained on earlier years only. |
 | Temporal split / train-test contamination | Chronological, with `train < validation < test` asserted. Thresholds and settings use data up to 2023 only, and the test set is used once. |
 | Reporting-area coding | Alphabetical codes from notebook 02, used identically by the notebooks and the dashboard. |
 | Dashboard vs training features | The dashboard rebuilds the 11 features with the notebook 03 formulas; checked identical on all 3,614 test rows. Dashboard predictions are bit-identical to the evaluation predictions. |
-| Reproducibility | Retraining XGBoost gives the saved model's predictions exactly. Random Forest trees are identical across runs; parallel prediction differed by about 1e-13, so the saved model predicts in a single thread (`n_jobs=1`) for exact repeatability. Notebook 07 checks that both loaded models reproduce the test scores recorded in notebooks 05 and 06, and notebook 08 reproduces notebook 05's Random Forest validation MAE (18.139). |
+| Reproducibility | Retraining XGBoost gives the saved model's predictions exactly. Random Forest trees are identical across runs; parallel prediction differed by about 1e-13, so the saved model predicts in a single thread (`n_jobs=1`) for exact repeatability. Notebook 07's 2023 walk-forward base predictions reproduce the validation MAE of notebooks 05 and 06 (18.139 and 18.099), and notebook 08 checks that all loaded models reproduce the test scores recorded in notebooks 05-07. |
 | Metrics | MAE and RMSE are pooled over all district-weeks, so they are dominated by the large areas; per-area, per-year and outbreak-week results are also reported. |
 | Duplicated weeks | Favour persistence; reported as a sensitivity check without changing the test set. |
 
@@ -172,30 +171,17 @@ This is a **negative result**. The Random Forest's errors are almost uncorrelate
 - The most recent 2026 weeks may be incomplete (late reports), and the duplicated weeks may hide data errors.
 - The risk thresholds are fixed percentiles from 2007-2023 and do not adjust to population or reporting changes.
 
-## 12. Research note: Random Forest, XGBoost, LightGBM and CatBoost
+## 12. Research note
 
-All four are ensembles of decision trees. Random Forest uses **bagging**; the other three are **gradient boosting** libraries.
-
-| | Random Forest | XGBoost | LightGBM | CatBoost |
-|---|---|---|---|---|
-| Ensemble type | bagging + random feature subsets (Breiman, 2001) | gradient boosting with a regularised objective and second-order gradients (Chen & Guestrin, 2016) | gradient boosting with histogram-based splits, leaf-wise tree growth, GOSS sampling and exclusive feature bundling (Ke et al., 2017) | gradient boosting with ordered boosting and symmetric (oblivious) trees (Prokhorenkova et al., 2018) |
-| Strengths | few settings, robust defaults, hard to overfit badly, trees train in parallel | high accuracy on tabular data, L1/L2 regularisation, built-in missing-value handling, widely used | very fast and memory-efficient on large datasets, native categorical support | strong default settings, built-in handling of categorical features via ordered target statistics, reduces target leakage in boosting, fast prediction |
-| Limitations | cannot extrapolate beyond training targets, large model files, impurity importance is biased | more settings to tune, sequential training, can fit rare patterns strongly (seen in this project) | leaf-wise trees can overfit small datasets unless `num_leaves` / `min_data_in_leaf` are limited | training is often slower than LightGBM on large data; its advantages matter most when there are many categorical features |
-
-**Tabular data.** On medium-sized tabular datasets, tree ensembles are still usually as accurate as deep learning or better (Grinsztajn et al., 2022; Shwartz-Ziv & Armon, 2022). Tuned boosting is often the most accurate, while Random Forest is the most robust with little tuning. That matches this project: with about 22,000 rows and noisy outbreak data, the more conservative Random Forest generalised better.
-
-**Image and text data.** Trees split on individual input columns. A single pixel or token carries little meaning on its own, and the important structure is spatial (images) or sequential (text). Deep learning (convolutional networks, transformers) learns that structure directly from raw data and is the standard choice there. Tree ensembles can still be used *on top of* extracted features, such as image embeddings or text TF-IDF vectors and embeddings, but they do not learn the representation themselves.
-
-**Why LightGBM and CatBoost were not run.** Their main advantages are speed on very large datasets and handling of many categorical features. This dataset is small and has a single categorical feature (`district_code`), so they would be expected to behave like XGBoost (boosting), but this was **not tested**. Adding them would also require new dependencies.
+Random Forest (Breiman, 2001) uses bagging; XGBoost (Chen & Guestrin, 2016), LightGBM (Ke et al., 2017) and CatBoost (Prokhorenkova et al., 2018) are gradient boosting libraries, and stacking (Wolpert, 1992) combines different models through a meta-model. LightGBM's and CatBoost's main advantages are speed on very large datasets and handling of many categorical features; this dataset is small and has a single categorical feature (`district_code`), so they would be expected to behave like XGBoost, but they were **not tested**. On medium-sized tabular data like this, tree ensembles are usually as accurate as deep learning or better (Grinsztajn et al., 2022).
 
 **References**
 - Breiman, L. (2001). Random forests. *Machine Learning*, 45(1), 5-32.
 - Chen, T., & Guestrin, C. (2016). XGBoost: A scalable tree boosting system. *Proceedings of KDD 2016*, 785-794.
 - Ke, G., et al. (2017). LightGBM: A highly efficient gradient boosting decision tree. *Advances in Neural Information Processing Systems 30*.
 - Prokhorenkova, L., et al. (2018). CatBoost: unbiased boosting with categorical features. *Advances in Neural Information Processing Systems 31*.
-- Zhang, G. P. (2003). Time series forecasting using a hybrid ARIMA and neural network model. *Neurocomputing*, 50, 159-175.
+- Wolpert, D. H. (1992). Stacked generalization. *Neural Networks*, 5(2), 241-259.
 - Grinsztajn, L., Oyallon, E., & Varoquaux, G. (2022). Why do tree-based models still outperform deep learning on typical tabular data? *NeurIPS 2022 Datasets and Benchmarks Track*.
-- Shwartz-Ziv, R., & Armon, A. (2022). Tabular data: Deep learning is not all you need. *Information Fusion*, 81, 84-90.
 
 ## 13. Risk levels are not official alerts
 
@@ -210,19 +196,21 @@ notebooks analysis/
   01_data_understanding_validation.ipynb      checks only
   02_data_cleaning.ipynb                      cleaning decisions
   03_feature_engineering.ipynb                features, target, split, thresholds
-  04_baseline_model_training.ipynb            persistence, Decision Tree (validation 2023)
+  04_baseline_model_training.ipynb            persistence, Decision Tree, Multiple Linear Regression (validation 2023)
   05_bagging_random_forest.ipynb              BAGGING: Random Forest (tuning on 2023, final test 2024-2026)
   06_boosting_xgboost.ipynb                   BOOSTING: XGBoost (tuning on 2023, final test 2024-2026)
-  07_final_rf_vs_xgboost_comparison.ipynb     bagging vs boosting vs persistence on the same test rows + diagnostics
-  08_hybrid_rf_arima_experiment.ipynb         experimental RF + ARIMA hybrid
+  07_stacking.ipynb                           STACKING: RF + XGBoost + Linear Regression -> meta-model (chosen on 2023, final test)
+  08_final_comparison.ipynb                   bagging vs boosting vs stacking vs persistence on the same test rows + diagnostics
 models/
   05_random_forest_results.json               Random Forest settings, validation and test scores
   05_final_random_forest_model.joblib         final Random Forest model
   06_xgboost_results.json                     XGBoost settings, validation and test scores
   06_final_xgboost_model.json                 final XGBoost model
-  07_final_test_results.json                  test scores, sensitivity check, feature importance
-  07_test_predictions.csv                     every test row with actual and predicted values
-  08_hybrid_rf_arima_results.json             hybrid experiment results
+  07_stacking_results.json                    stacking meta-model, base models, meta weights, validation and test scores
+  07_final_linear_regression_model.joblib     Linear Regression base model of the stack
+  07_stacking_meta_model.joblib               stacking meta-model
+  08_final_test_results.json                  test scores, sensitivity check, feature importance
+  08_test_predictions.csv                     every test row with actual and predicted values
 app/dashboard.py                              Streamlit dashboard
 ```
 
@@ -238,12 +226,12 @@ Run the second command from the project folder.
 The dashboard has four tabs:
 - **Overview:** national statistics and trends.
 - **Historical trends:** weekly cases per reporting area, with its risk thresholds.
-- **Prediction & risk:** next-week prediction with a choice of **Random Forest or XGBoost**, risk level, and a table for all 26 areas.
+- **Prediction & risk:** next-week prediction with a choice of **Random Forest, XGBoost or Stacking**, risk level, and a table for all 26 areas.
 - **Model comparison:** validation and test results, actual vs predicted, feature importance and an interpretation.
 
 The data ends with the week starting 2026-08-29, so the forecast is for the following week, not for today.
 
-**Tested with:** Python 3.14.6, pandas 3.0.3, numpy 2.4.6, scikit-learn 1.9.0, xgboost 3.4.1, statsmodels 0.14.6, streamlit 1.58.0, plotly 6.7.0. The Random Forest file is a joblib/pickle file: load it with the same scikit-learn version, and only load it from a trusted source.
+**Tested with:** Python 3.14.6, pandas 3.0.3, numpy 2.4.6, scikit-learn 1.9.0, xgboost 3.4.1, streamlit 1.58.0, plotly 6.7.0. The Random Forest, Linear Regression and meta-model files are joblib/pickle files: load them with the same scikit-learn version, and only load it from a trusted source.
 
 ## 16. Reproducing the results
 
@@ -253,21 +241,20 @@ Run the notebooks in order (01 to 08) from inside the `notebooks analysis/` fold
 cd "notebooks analysis"
 jupyter nbconvert --to notebook --execute --inplace 05_bagging_random_forest.ipynb
 jupyter nbconvert --to notebook --execute --inplace 06_boosting_xgboost.ipynb
-jupyter nbconvert --to notebook --execute --inplace 07_final_rf_vs_xgboost_comparison.ipynb
-jupyter nbconvert --to notebook --execute --inplace 08_hybrid_rf_arima_experiment.ipynb
+jupyter nbconvert --to notebook --execute --inplace 07_stacking.ipynb
+jupyter nbconvert --to notebook --execute --inplace 08_final_comparison.ipynb
 ```
 
 - Notebooks 01-03 rewrite the files in `dataset/processed/`, and notebooks 05-08 write to `models/`.
-- Notebook 07 loads the models saved by notebooks 05 and 06, so run 05 and 06 first. Notebook 08 uses the Random Forest from notebook 05 and the results of notebook 07.
-- All models use `random_state = 42`. Notebook 07 checks that the loaded models reproduce the test scores recorded in notebooks 05 and 06.
-- Notebook 08 needs `statsmodels`. The dashboard does not.
+- Notebook 07 uses the settings and saved models of notebooks 05 and 06, and notebook 08 loads the models of notebooks 05-07, so run them in order.
+- All models use `random_state = 42`. Notebook 08 checks that the loaded models reproduce the test scores recorded in notebooks 05-07.
 
 ## 17. Declaration of AI assistance
 
 An AI agentic coding assistant, **Claude** (developed by Anthropic and used through **Claude Code**), was used as a helper during the development of this project.
 
 **How it was used**
-- **Notebooks (`notebooks analysis/`):** help with writing, simplifying and explaining code and Markdown, checking the data against the original reports, and auditing the method for data leakage and correct time-based splitting. Notebooks **07** (final Random Forest vs XGBoost comparison) and **08** (Random Forest + ARIMA experiment) were drafted with the assistant. The assistant also helped split the ensemble work into a separate bagging notebook (**05**, Random Forest) and boosting notebook (**06**, XGBoost).
+- **Notebooks (`notebooks analysis/`):** help with writing, simplifying and explaining code and Markdown, checking the data against the original reports, and auditing the method for data leakage and correct time-based splitting. Notebooks **07** (stacking) and **08** (final comparison) and the Multiple Linear Regression section of notebook **04** were drafted with the assistant. The assistant also helped split the ensemble work into a separate bagging notebook (**05**, Random Forest) and boosting notebook (**06**, XGBoost).
 - **Dashboard (`app/dashboard.py`) and this README:** drafted with the assistant.
 
 **What remained our responsibility**
