@@ -257,3 +257,16 @@ jupyter nbconvert --to notebook --execute --inplace 08_hybrid_rf_arima_experimen
 - Notebooks 01-03 rewrite the files in `dataset/processed/`, and notebooks 05-08 write to `models/`.
 - All models use `random_state = 42`. Notebook 07 checks that it reproduces notebook 05's Random Forest validation score and notebook 06's saved XGBoost model.
 - Notebook 08 needs `statsmodels`. The dashboard does not.
+
+## 17. Declaration of AI assistance
+
+An AI agentic coding assistant, **Claude** (developed by Anthropic and used through **Claude Code**), was used as a helper during the development of this project.
+
+**How it was used**
+- **Notebooks (`notebooks analysis/`):** help with writing, simplifying and explaining code and Markdown, checking the data against the original reports, and auditing the method for data leakage and correct time-based splitting. Notebooks **07** (final Random Forest vs XGBoost comparison) and **08** (Random Forest + ARIMA experiment) were drafted with the assistant.
+- **Dashboard (`app/dashboard.py`) and this README:** drafted with the assistant.
+
+**What remained our responsibility**
+- The project idea, the dataset choice, and the decisions about scope, methods and what to report were ours.
+- All code was reviewed and run by us. Every score, table and chart comes from running the notebooks on the data, not from text written by the AI.
+- We checked the results and are responsible for the final content of the project, including its limitations.
