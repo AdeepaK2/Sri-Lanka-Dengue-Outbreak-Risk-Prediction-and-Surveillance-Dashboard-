@@ -1,6 +1,6 @@
 {
   "created_by": "notebooks analysis/07_final_rf_vs_xgboost_comparison.ipynb",
-  "note": "New results added after notebook 06. Notebook 06 and 05_selected_model.json are unchanged.",
+  "note": "Comparison of the final Random Forest (notebook 05, bagging) and XGBoost (notebook 06, boosting) models.",
   "train_rows": 21684,
   "test_rows": 3508,
   "train_target_weeks": [

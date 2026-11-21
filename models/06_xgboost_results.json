@@ -1,0 +1,76 @@
+{
+  "created_by": "notebooks analysis/06_boosting_xgboost.ipynb",
+  "model": "XGBoost",
+  "ensemble_type": "boosting",
+  "params": {
+    "n_estimators": 400,
+    "max_depth": 2,
+    "learning_rate": 0.05
+  },
+  "random_state": 42,
+  "features": [
+    "current_week_cases",
+    "previous_week_cases",
+    "previous_2_weeks_cases",
+    "previous_3_weeks_cases",
+    "seasonal_cases_previous_52_weeks",
+    "moving_average_4_weeks",
+    "moving_average_8_weeks",
+    "weekly_case_change",
+    "seasonal_week_sin",
+    "seasonal_week_cos",
+    "district_code"
+  ],
+  "target": "cases_next",
+  "validation_year": 2023,
+  "removed_rows": "is_imputed or target_imputed (interpolated weeks)",
+  "predictions_clipped_at_zero": true,
+  "settings_compared": {
+    "default (100 rounds, depth 6, lr 0.3)": {
+      "training MAE": 5.361,
+      "MAE": 20.4,
+      "RMSE": 46.301
+    },
+    "200 rounds, depth 3, lr 0.1": {
+      "training MAE": 8.895,
+      "MAE": 19.211,
+      "RMSE": 45.39
+    },
+    "400 rounds, depth 2, lr 0.05": {
+      "training MAE": 9.705,
+      "MAE": 18.099,
+      "RMSE": 41.345
+    }
+  },
+  "validation_scores": {
+    "Persistence": {
+      "MAE": 18.169,
+      "RMSE": 41.817
+    },
+    "Decision Tree": {
+      "MAE": 18.963,
+      "RMSE": 43.013
+    },
+    "XGBoost": {
+      "MAE": 18.099,
+      "RMSE": 41.345
+    }
+  },
+  "final_train_rows": 21684,
+  "test_rows": 3508,
+  "test_scores": {
+    "Persistence": {
+      "MAE": 12.63,
+      "RMSE": 29.93
+    },
+    "XGBoost": {
+      "MAE": 13.215,
+      "RMSE": 39.191
+    }
+  },
+  "library_versions": {
+    "xgboost": "3.4.1",
+    "pandas": "3.0.3",
+    "numpy": "2.4.6"
+  }
+}

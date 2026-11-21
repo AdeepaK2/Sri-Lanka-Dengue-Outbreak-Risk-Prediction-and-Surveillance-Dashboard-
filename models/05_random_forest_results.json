@@ -1,0 +1,74 @@
+{
+  "created_by": "notebooks analysis/05_bagging_random_forest.ipynb",
+  "model": "Random Forest",
+  "ensemble_type": "bagging",
+  "params": {
+    "n_estimators": 200,
+    "min_samples_leaf": 10
+  },
+  "random_state": 42,
+  "features": [
+    "current_week_cases",
+    "previous_week_cases",
+    "previous_2_weeks_cases",
+    "previous_3_weeks_cases",
+    "seasonal_cases_previous_52_weeks",
+    "moving_average_4_weeks",
+    "moving_average_8_weeks",
+    "weekly_case_change",
+    "seasonal_week_sin",
+    "seasonal_week_cos",
+    "district_code"
+  ],
+  "target": "cases_next",
+  "validation_year": 2023,
+  "removed_rows": "is_imputed or target_imputed (interpolated weeks)",
+  "settings_compared": {
+    "default (100 trees)": {
+      "training MAE": 3.802,
+      "MAE": 18.638,
+      "RMSE": 43.878
+    },
+    "200 trees, min_samples_leaf=10": {
+      "training MAE": 8.075,
+      "MAE": 18.139,
+      "RMSE": 42.318
+    },
+    "200 trees, max_depth=10": {
+      "training MAE": 7.862,
+      "MAE": 18.354,
+      "RMSE": 43.42
+    }
+  },
+  "validation_scores": {
+    "Persistence": {
+      "MAE": 18.169,
+      "RMSE": 41.817
+    },
+    "Decision Tree": {
+      "MAE": 18.963,
+      "RMSE": 43.013
+    },
+    "Random Forest": {
+      "MAE": 18.139,
+      "RMSE": 42.318
+    }
+  },
+  "final_train_rows": 21684,
+  "test_rows": 3508,
+  "test_scores": {
+    "Persistence": {
+      "MAE": 12.63,
+      "RMSE": 29.93
+    },
+    "Random Forest": {
+      "MAE": 12.529,
+      "RMSE": 33.631
+    }
+  },
+  "library_versions": {
+    "scikit-learn": "1.9.0",
+    "pandas": "3.0.3",
+    "numpy": "2.4.6"
+  }
+}

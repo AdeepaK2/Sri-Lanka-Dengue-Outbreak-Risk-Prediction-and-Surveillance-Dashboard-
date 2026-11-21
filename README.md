@@ -71,15 +71,15 @@ There is one row per reporting area and week. Every feature uses only the **curr
 | Set | Target weeks | Rows (after the leakage rule) | Used for |
 |---|---|---|---|
 | Training | 2007-12-29 to 2022-12-31 | 20,332 | fitting the models while choosing settings |
-| Validation | 2023-01-07 to 2023-12-30 | 1,352 | comparing settings and models (notebooks 04-05) |
-| Final training | 2007-12-29 to 2023-12-30 | 21,684 | refitting the chosen settings (notebooks 06-07) |
+| Validation | 2023-01-07 to 2023-12-30 | 1,352 | comparing settings and models (notebooks 04-06) |
+| Final training | 2007-12-29 to 2023-12-30 | 21,684 | refitting the chosen settings (notebooks 05-06) |
 | **Test** | 2024-01-06 to 2026-08-29 | **3,508** | final evaluation only; never used for any decision |
 
 The split is chronological: models always learn from the past and are evaluated on the future.
 
 ## 6. Models and hyperparameters
 
-All settings were chosen on the **2023 validation year only** (notebooks 04-05), from a few simple candidate settings per model. `random_state = 42` is used everywhere.
+All settings were chosen on the **2023 validation year only** (notebook 04: Decision Tree, notebook 05: Random Forest, notebook 06: XGBoost), from a few simple candidate settings per model. `random_state = 42` is used everywhere.
 
 | Model | Type | Settings | Chosen from |
 |---|---|---|---|
@@ -101,7 +101,7 @@ XGBoost predictions are clipped at 0. A Random Forest cannot predict below 0.
 
 ## 8. Results
 
-### 8.1 Validation (2023, notebook 05; used to choose the settings)
+### 8.1 Validation (2023, notebooks 04-06; used to choose the settings)
 
 | Model | MAE | RMSE |
 |---|---|---|
@@ -110,11 +110,11 @@ XGBoost predictions are clipped at 0. A Random Forest cannot predict below 0.
 | Random Forest | 18.14 | 42.32 |
 | XGBoost | **18.10** | **41.34** |
 
-XGBoost was selected in notebook 05, but its lead over the Random Forest (0.04 cases per district-week) is far too small to call it better.
+XGBoost has the lowest validation scores, but its lead over the Random Forest (0.04 cases per district-week) is far too small to call it better.
 
-### 8.2 Final test (2024-2026, notebook 07)
+### 8.2 Final test (2024-2026, notebooks 05-07)
 
-All three models are evaluated on the same 3,508 rows. MAE and RMSE are in cases per district-week. Negative percentages mean a smaller error than persistence.
+Each ensemble is tested in its own notebook (05 Random Forest, 06 XGBoost), and notebook 07 compares them. All three models are evaluated on the same 3,508 rows. MAE and RMSE are in cases per district-week. Negative percentages mean a smaller error than persistence.
 
 | Model | Test MAE | Test RMSE | MAE vs persistence | RMSE vs persistence |
 |---|---|---|---|---|
@@ -160,7 +160,7 @@ This is a **negative result**. The Random Forest's errors are almost uncorrelate
 | Temporal split / train-test contamination | Chronological, with `train < validation < test` asserted. Thresholds and settings use data up to 2023 only, and the test set is used once. |
 | Reporting-area coding | Alphabetical codes from notebook 02, used identically by the notebooks and the dashboard. |
 | Dashboard vs training features | The dashboard rebuilds the 11 features with the notebook 03 formulas; checked identical on all 3,614 test rows. Dashboard predictions are bit-identical to the evaluation predictions. |
-| Reproducibility | Retraining XGBoost gives the saved model's predictions exactly. Random Forest trees are identical across runs; parallel prediction differed by about 1e-13, so the saved model predicts in a single thread (`n_jobs=1`) for exact repeatability. Notebook 07 also reproduces notebook 05's Random Forest validation MAE (18.139). |
+| Reproducibility | Retraining XGBoost gives the saved model's predictions exactly. Random Forest trees are identical across runs; parallel prediction differed by about 1e-13, so the saved model predicts in a single thread (`n_jobs=1`) for exact repeatability. Notebook 07 checks that both loaded models reproduce the test scores recorded in notebooks 05 and 06, and notebook 08 reproduces notebook 05's Random Forest validation MAE (18.139). |
 | Metrics | MAE and RMSE are pooled over all district-weeks, so they are dominated by the large areas; per-area, per-year and outbreak-week results are also reported. |
 | Duplicated weeks | Favour persistence; reported as a sensitivity check without changing the test set. |
 
@@ -211,14 +211,15 @@ notebooks analysis/
   02_data_cleaning.ipynb                      cleaning decisions
   03_feature_engineering.ipynb                features, target, split, thresholds
   04_baseline_model_training.ipynb            persistence, Decision Tree (validation 2023)
-  05_ensemble_model_training.ipynb            Random Forest, XGBoost (validation 2023)
-  06_final_model_evaluation.ipynb             final XGBoost vs persistence (original test result)
-  07_final_rf_vs_xgboost_comparison.ipynb     final Random Forest vs XGBoost vs persistence + diagnostics
+  05_bagging_random_forest.ipynb              BAGGING: Random Forest (tuning on 2023, final test 2024-2026)
+  06_boosting_xgboost.ipynb                   BOOSTING: XGBoost (tuning on 2023, final test 2024-2026)
+  07_final_rf_vs_xgboost_comparison.ipynb     bagging vs boosting vs persistence on the same test rows + diagnostics
   08_hybrid_rf_arima_experiment.ipynb         experimental RF + ARIMA hybrid
 models/
-  05_selected_model.json                      validation scores and selected settings
+  05_random_forest_results.json               Random Forest settings, validation and test scores
+  05_final_random_forest_model.joblib         final Random Forest model
+  06_xgboost_results.json                     XGBoost settings, validation and test scores
   06_final_xgboost_model.json                 final XGBoost model
-  07_final_random_forest_model.joblib         final Random Forest model
   07_final_test_results.json                  test scores, sensitivity check, feature importance
   07_test_predictions.csv                     every test row with actual and predicted values
   08_hybrid_rf_arima_results.json             hybrid experiment results
@@ -250,12 +251,15 @@ Run the notebooks in order (01 to 08) from inside the `notebooks analysis/` fold
 
 ```bash
 cd "notebooks analysis"
+jupyter nbconvert --to notebook --execute --inplace 05_bagging_random_forest.ipynb
+jupyter nbconvert --to notebook --execute --inplace 06_boosting_xgboost.ipynb
 jupyter nbconvert --to notebook --execute --inplace 07_final_rf_vs_xgboost_comparison.ipynb
 jupyter nbconvert --to notebook --execute --inplace 08_hybrid_rf_arima_experiment.ipynb
 ```
 
 - Notebooks 01-03 rewrite the files in `dataset/processed/`, and notebooks 05-08 write to `models/`.
-- All models use `random_state = 42`. Notebook 07 checks that it reproduces notebook 05's Random Forest validation score and notebook 06's saved XGBoost model.
+- Notebook 07 loads the models saved by notebooks 05 and 06, so run 05 and 06 first. Notebook 08 uses the Random Forest from notebook 05 and the results of notebook 07.
+- All models use `random_state = 42`. Notebook 07 checks that the loaded models reproduce the test scores recorded in notebooks 05 and 06.
 - Notebook 08 needs `statsmodels`. The dashboard does not.
 
 ## 17. Declaration of AI assistance
@@ -263,7 +267,7 @@ jupyter nbconvert --to notebook --execute --inplace 08_hybrid_rf_arima_experimen
 An AI agentic coding assistant, **Claude** (developed by Anthropic and used through **Claude Code**), was used as a helper during the development of this project.
 
 **How it was used**
-- **Notebooks (`notebooks analysis/`):** help with writing, simplifying and explaining code and Markdown, checking the data against the original reports, and auditing the method for data leakage and correct time-based splitting. Notebooks **07** (final Random Forest vs XGBoost comparison) and **08** (Random Forest + ARIMA experiment) were drafted with the assistant.
+- **Notebooks (`notebooks analysis/`):** help with writing, simplifying and explaining code and Markdown, checking the data against the original reports, and auditing the method for data leakage and correct time-based splitting. Notebooks **07** (final Random Forest vs XGBoost comparison) and **08** (Random Forest + ARIMA experiment) were drafted with the assistant. The assistant also helped split the ensemble work into a separate bagging notebook (**05**, Random Forest) and boosting notebook (**06**, XGBoost).
 - **Dashboard (`app/dashboard.py`) and this README:** drafted with the assistant.
 
 **What remained our responsibility**

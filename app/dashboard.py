@@ -9,9 +9,10 @@ Uses the files made by the notebooks:
     dataset/processed/02_cleaned_weekly_data.csv   weekly cases per reporting area (notebook 02)
     dataset/processed/03_risk_thresholds.csv       district risk thresholds (notebook 03)
     dataset/processed/test.csv                     test weeks 2024-2026 (notebook 03)
-    models/05_selected_model.json                  validation scores of all models (notebook 05)
+    models/05_random_forest_results.json           Random Forest settings and validation scores (notebook 05, bagging)
+    models/05_final_random_forest_model.joblib     final trained Random Forest model (notebook 05)
+    models/06_xgboost_results.json                 XGBoost settings and validation scores (notebook 06, boosting)
     models/06_final_xgboost_model.json             final trained XGBoost model (notebook 06)
-    models/07_final_random_forest_model.joblib     final trained Random Forest model (notebook 07)
     models/07_final_test_results.json              permutation importance, sensitivity check (notebook 07)
     models/08_hybrid_rf_arima_results.json         optional: RF + ARIMA experiment (notebook 08)
 """
@@ -32,9 +33,10 @@ VALIDATED_PATH = ROOT / "dataset" / "processed" / "01_validated_weekly_data.csv"
 DATA_PATH = ROOT / "dataset" / "processed" / "02_cleaned_weekly_data.csv"
 THRESH_PATH = ROOT / "dataset" / "processed" / "03_risk_thresholds.csv"
 TEST_PATH = ROOT / "dataset" / "processed" / "test.csv"
-CONFIG_PATH = ROOT / "models" / "05_selected_model.json"
+RF_RESULTS_PATH = ROOT / "models" / "05_random_forest_results.json"
+RF_MODEL_PATH = ROOT / "models" / "05_final_random_forest_model.joblib"
+XGB_RESULTS_PATH = ROOT / "models" / "06_xgboost_results.json"
 XGB_MODEL_PATH = ROOT / "models" / "06_final_xgboost_model.json"
-RF_MODEL_PATH = ROOT / "models" / "07_final_random_forest_model.joblib"
 RESULTS_07_PATH = ROOT / "models" / "07_final_test_results.json"
 RESULTS_08_PATH = ROOT / "models" / "08_hybrid_rf_arima_results.json"
 
@@ -79,8 +81,8 @@ def load_thresholds():
 def load_models():
     """The two final ensemble models, both trained on target weeks 2007-2023."""
     xgb = XGBRegressor()
-    xgb.load_model(XGB_MODEL_PATH)       # notebook 06
-    rf = joblib.load(RF_MODEL_PATH)      # notebook 07 (saved with n_jobs=1 for repeatable predictions)
+    xgb.load_model(XGB_MODEL_PATH)       # notebook 06 (boosting)
+    rf = joblib.load(RF_MODEL_PATH)      # notebook 05 (bagging; saved with n_jobs=1 for repeatable predictions)
     return {"Random Forest": rf, "XGBoost": xgb}
 
 
@@ -88,7 +90,17 @@ def load_json(path):
     return json.loads(path.read_text()) if path.exists() else None
 
 
-config = json.loads(CONFIG_PATH.read_text())
+rf_results = json.loads(RF_RESULTS_PATH.read_text())     # notebook 05 (bagging)
+xgb_results = json.loads(XGB_RESULTS_PATH.read_text())   # notebook 06 (boosting)
+for key in ["features", "target", "validation_year"]:
+    assert rf_results[key] == xgb_results[key], key
+config = {
+    "features": rf_results["features"],
+    "target": rf_results["target"],
+    "validation_year": rf_results["validation_year"],
+    # persistence and Decision Tree are in both files (same values); Random Forest from 05, XGBoost from 06
+    "validation_scores": {**rf_results["validation_scores"], **xgb_results["validation_scores"]},
+}
 results_07 = load_json(RESULTS_07_PATH)
 results_08 = load_json(RESULTS_08_PATH)
 FEATURES = config["features"]
@@ -152,7 +164,7 @@ def predict_next_week(model_name):
 
 @st.cache_data
 def test_period_predictions():
-    """Final test (target weeks 2024-2026), the same rows as notebooks 06 and 07:
+    """Final test (target weeks 2024-2026), the same rows as notebooks 05-07:
     actual cases and the predictions of persistence, Random Forest and XGBoost."""
     test = pd.read_csv(TEST_PATH, parse_dates=["start_date", "target_date"])
     test = test[~(test["is_imputed"] | test["target_imputed"])].reset_index(drop=True)  # leave out interpolated weeks
@@ -463,7 +475,7 @@ features, the same leakage check and the same chronological split.
     valid_best = "Random Forest" if valid_rf < valid_xgb else "XGBoost"
     st.markdown(f"On {config['validation_year']}, **{valid_best}** had the slightly lower MAE "
                 f"(XGBoost {valid_xgb:.2f}, Random Forest {valid_rf:.2f}: a difference of "
-                f"{abs(valid_rf - valid_xgb):.2f} cases per district-week) and was selected in notebook 05. "
+                f"{abs(valid_rf - valid_xgb):.2f} cases per district-week). "
                 "A difference this small on a single year is not enough to call one model better, so both were "
                 "evaluated on the untouched test set below.")
 
@@ -597,13 +609,13 @@ features, the same leakage check and the same chronological split.
 
     lines.append("- The largest errors of both ensembles are at the peaks of the 2026 outbreak, where they predicted "
                  "too many cases after the peak. XGBoost overshot most, because it learned from a few extreme 2017 "
-                 "weeks that a large weekly jump is followed by an even higher week (notebook 07, section 8).")
+                 "weeks that a large weekly jump is followed by an even higher week (notebook 07, section 5).")
     lines.append("- The results come from one test period dominated by one large outbreak, without a statistical "
                  "significance test, so small differences should not be over-interpreted.")
     st.markdown("\n".join(lines))
 
     if results_07:
-        with st.expander("Data-quality check: duplicated weeks (notebook 07, section 10)"):
+        with st.expander("Data-quality check: duplicated weeks (notebook 07, section 7)"):
             sensitivity = results_07["sensitivity_without_duplicated_weeks"]
             st.markdown(f"Notebook 02 found pairs of consecutive weeks with identical counts in all 26 reporting areas "
                         f"(probably the same report copied twice). Two pairs fall in the test period, where persistence "
