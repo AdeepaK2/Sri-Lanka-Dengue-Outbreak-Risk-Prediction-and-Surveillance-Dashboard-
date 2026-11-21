@@ -6,6 +6,9 @@ numpy
 scikit-learn
 xgboost
 
+# Time-series model, only for the experimental RF + ARIMA notebook (08); the dashboard does not need it
+statsmodels
+
 # Visualization
 matplotlib
 seaborn
