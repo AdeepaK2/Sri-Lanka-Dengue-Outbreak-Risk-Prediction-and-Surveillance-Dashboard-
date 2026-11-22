@@ -205,6 +205,7 @@ latest_date = weekly["start_date"].max()
 forecast_date = latest_date + pd.Timedelta(weeks=1)
 
 st.sidebar.title("Dengue Dashboard")
+st.sidebar.caption("Kularathna G.G.A.S | 224110P | Assignment 1")
 district = st.sidebar.selectbox("Reporting area", districts, index=districts.index("Colombo"))
 st.sidebar.markdown(f"**Data until:** week starting {latest_date:%d %b %Y}")
 st.sidebar.markdown("**Models:** Random Forest (bagging), XGBoost (boosting), Stacking. "
@@ -213,6 +214,7 @@ st.sidebar.caption("Data: Weekly Epidemiological Reports, Epidemiology Unit, Min
                    "(compiled in the denguedatahub repository).")
 
 st.title("Sri Lanka Dengue Forecasting: Bagging vs Boosting vs Stacking")
+st.markdown("**Kularathna G.G.A.S | 224110P | Assignment 1**")
 st.caption("Each model predicts **next week's dengue cases** for each of the 26 reporting areas from the last few "
            "weeks of cases.")
 
