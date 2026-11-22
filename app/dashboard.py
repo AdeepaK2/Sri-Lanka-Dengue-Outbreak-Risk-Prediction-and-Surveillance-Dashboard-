@@ -261,12 +261,12 @@ with tab_compare:
                 "that they never saw. **MAE** = average prediction error in cases per week: **lower is better**.")
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("🏆 Best ensemble", best_ensemble, f"MAE {ens.loc[best_ensemble, 'MAE']:.2f}", delta_color="off")
+    col1.metric("🏆 Best ensemble", best_ensemble, f"MAE {ens.loc[best_ensemble, 'MAE']:.2f}", delta_color="off", delta_arrow="off")
     col2.metric("Bagging vs boosting",
                 f"RF {ens.loc['Random Forest', 'MAE']:.2f} vs XGB {ens.loc['XGBoost', 'MAE']:.2f}",
-                f"{bag_winner.split(' (')[0]} wins", delta_color="off")
+                f"{bag_winner.split(' (')[0]} wins", delta_color="off", delta_arrow="off")
     col3.metric("Best single model (reference)", best_overall, f"MAE {test_scores.loc[best_overall, 'MAE']:.2f}",
-                delta_color="off")
+                delta_color="off", delta_arrow="off")
 
     # ------------------------------------------------ 1. results
     st.divider()
@@ -523,7 +523,7 @@ with tab_predict:
         for col, name in zip(cols, FORECAST_MODELS):
             value = int(round(scenario[name]))
             level = risk_level(value, district)
-            col.metric(name, f"{value:,}", f"{level} risk", delta_color="off")
+            col.metric(name, f"{value:,}", f"{level} risk", delta_color="off", delta_arrow="off")
 
         left, right = st.columns(2)
         with left:
@@ -538,7 +538,8 @@ with tab_predict:
                                          hovertemplate=f"{name}: %{{y:,.0f}}<extra></extra>"))
             add_threshold_lines(fig, district)
             fig.update_layout(title="Your scenario and each model's forecast")
-            style_chart(fig, "cases per week", height=420)
+            style_chart(fig, "cases per week", height=440)
+            fig.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.2, x=0), margin=dict(t=50, b=95))
             fig.update_xaxes(tickvals=[-3, -2, -1, 0, 1],
                              ticktext=["3 weeks ago", "2 weeks ago", "last week", "this week", "next week"])
             st.plotly_chart(fig, width="stretch")
@@ -554,7 +555,8 @@ with tab_predict:
             fig.add_vline(x=w0, line_dash="dot", line_color=MUTED_INK, annotation_text="your 'this week'",
                           annotation_font_color=MUTED_INK)
             fig.update_layout(title="How each model responds as 'this week' grows")
-            style_chart(fig, "predicted cases next week", height=420)
+            style_chart(fig, "predicted cases next week", height=440)
+            fig.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.28, x=0), margin=dict(t=50, b=110))
             fig.update_xaxes(title="this week's cases (other weeks fixed)")
             st.plotly_chart(fig, width="stretch")
         st.info("**What to look for (right chart):** the **Random Forest levels off**, because it averages "
@@ -585,7 +587,7 @@ with tab_predict:
         cols[0].metric(f"Actual, week of {row['target_date']:%d %b %Y}", f"{actual:,}")
         for col, name in zip(cols[1:], FORECAST_MODELS):
             col.metric(name + (" 🏆" if name == best else ""), f"{max(row[name], 0):,.0f}",
-                       f"{errors[name]:+,.0f} vs actual", delta_color="off")
+                       f"{errors[name]:+,.0f} vs actual", delta_color="off", delta_arrow="off")
 
         window = area_test[(area_test["start_date"] >= row["start_date"] - pd.Timedelta(weeks=11)) &
                            (area_test["start_date"] <= row["start_date"])]
@@ -602,7 +604,9 @@ with tab_predict:
         add_threshold_lines(fig, district)
         fig.update_layout(title=f"{district}: 12 weeks up to {row['start_date']:%d %b %Y} and the forecasts "
                                 "for the next week")
-        st.plotly_chart(style_chart(fig, "cases per week", height=420), width="stretch")
+        style_chart(fig, "cases per week", height=440)
+        fig.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.15, x=0), margin=dict(t=50, b=80))
+        st.plotly_chart(fig, width="stretch")
         st.caption("The slider starts at the area's biggest week in 2024-2026 (for Colombo, July 2026, where "
                    "XGBoost overshot most). Weeks next to an interpolated week are left out, as in the notebooks.")
 

@@ -1,6 +1,8 @@
 # Sri-Lanka-Dengue-Outbreak-Risk-Prediction-and-Surveillance-Dashboard-
 
-**Kularathna G.G.A.S | 224110P | Assignment 1**
+**Kularathna G.G.A.S | 224110P | Assignment 1 | Individual project**
+
+This is an individual project. Agentic coding help (Claude, through Claude Code) was used for the coding methodology, but all project decisions were my own. See [Section 17](#17-declaration-of-ai-assistance).
 
 Ensemble machine learning (bagging (Random Forest), boosting (XGBoost) and stacking, plus plain bagging, GBM, CatBoost and voting as extra variants) for one-week-ahead forecasting of dengue cases in Sri Lanka, with a Streamlit surveillance dashboard.
 
@@ -25,7 +27,7 @@ The Sri Lankan weekly dengue surveillance dataset used in this project was obtai
 
 The dataset compiles district-level dengue surveillance information originally published in the Weekly Epidemiological Reports of the Epidemiology Unit, Ministry of Health, Sri Lanka.
 
-We acknowledge Dr. Talagala for collecting, organizing, and making these data publicly accessible for research and analysis.
+I acknowledge Dr. Talagala for collecting, organizing, and making these data publicly accessible for research and analysis.
 
 **Dataset repository:** https://github.com/thiyangt/denguedatahub
 
@@ -168,7 +170,7 @@ Same 3,508 test rows. Training time is for the final model on the computer that 
 | XGBoost | boosting | 13.22 | 39.19 | about 0.15 s |
 
 - **Random Forest vs bagging:** the random feature subsets make the trees less alike, so the average is slightly better, and each split checks 5 features instead of 11, so it trains about twice as fast. The gain is small because `current_week_cases` carries most of the signal.
-- **GBM vs XGBoost:** with the same settings, GBM (exact split points) is the best tree ensemble. XGBoost's default `hist` method rounds every feature into 256 bins, which is very coarse in the rare 1,000+ case range. With `tree_method="exact"` XGBoost scores almost the same as GBM (12.04 / 29.35) and predicts about 1,736 instead of 2,265 for Colombo in July 2026 (actual 1,330). So most of XGBoost's overshoot comes from **binning**, not from boosting itself. XGBoost and CatBoost are much faster than GBM.
+- **GBM vs XGBoost:** with the same settings, GBM (exact split points) is the best tree ensemble. XGBoost's default `hist` method rounds every feature into 256 bins, which is very coarse in the rare 1,000+ case range. With `tree_method="exact"` XGBoost scores almost the same as GBM (12.04 / 29.35) and predicts about 1,670 instead of 2,265 for Colombo in July 2026 (actual 1,330); its largest forecast in the test years drops from 2,265 to 1,736. So most of XGBoost's overshoot comes from **binning**, not from boosting itself. XGBoost and CatBoost are much faster than GBM.
 - **Voting vs stacking:** on 2023 voting looked best (MAE 17.47), but on the test years it only ties stacking on MAE and is much worse on RMSE (30.48 vs 27.72): with equal weights, XGBoost's outbreak overestimates always get a third of the vote, while the stack learned to almost ignore them.
 
 ### 8.4 Hybridization: Random Forest + ARIMA (notebook 09)
@@ -303,13 +305,15 @@ jupyter nbconvert --to notebook --execute --inplace 09_hybrid_rf_arima.ipynb
 
 ## 17. Declaration of AI assistance
 
-An AI agentic coding assistant, **Claude** (developed by Anthropic and used through **Claude Code**), was used as a helper during the development of this project.
+This is an **individual project**: all of the work was done by me, Kularathna G.G.A.S (224110P).
 
-**How it was used**
+I took **agentic coding help** from an AI assistant, **Claude** (developed by Anthropic and used through **Claude Code**). Claude was used for the **coding methodology**, that is, how to write, structure, explain and check the code. **All decisions were made by me.**
+
+**How Claude was used**
 - **Notebooks (`notebooks analysis/`):** help with writing, simplifying and explaining code and Markdown, checking the data against the original reports, and auditing the method for data leakage and correct time-based splitting. Notebooks **07** (stacking) and **08** (final comparison) and the Multiple Linear Regression section of notebook **04** were drafted with the assistant. The assistant also helped split the ensemble work into a separate bagging notebook (**05**, Random Forest) and boosting notebook (**06**, XGBoost). Later additions were also drafted with the assistant: plain bagging, the OOB error and the error-vs-trees plot (05), GBM, CatBoost and the histogram-binning check (06), the voting ensemble (07), the extra-variants table (08) and the RF + ARIMA hybrid (**09**). Every notebook starts with a short AI-use declaration.
 - **Dashboard (`app/dashboard.py`) and this README:** drafted with the assistant.
 
-**What remained our responsibility**
-- The project idea, the dataset choice, and the decisions about scope, methods and what to report were ours.
-- All code was reviewed and run by us. Every score, table and chart comes from running the notebooks on the data, not from text written by the AI.
-- We checked the results and are responsible for the final content of the project, including its limitations.
+**What I decided and did myself**
+- The project idea, the dataset choice, and every decision about scope, methods, models, settings and what to report were mine.
+- I reviewed and ran all of the code myself. Every score, table and chart comes from running the notebooks on the data, not from text written by the AI.
+- I checked the results and I am responsible for the final content of the project, including its limitations.
