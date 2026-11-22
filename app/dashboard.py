@@ -290,14 +290,15 @@ with tab_compare:
                     "for the Random Forest. Averaging many trees (bagging) made the Random Forest more stable.")
     with col2:
         st.markdown("**Why the trees struggled in 2026**")
-        st.markdown("In the normal years 2024 and 2025 the tree models were the best. In the big 2026 outbreak they "
-                    "did worse than the baseline, because **trees cannot predict more cases than they have seen "
-                    "before**.")
+        st.markdown("In the normal years 2024 and 2025 the tree models were the best. In the big 2026 outbreak both "
+                    "did worse than the baseline: the **Random Forest is limited by the range of its training "
+                    "targets**, while **XGBoost sometimes amplified sharp increases and overshot**. Linear Regression "
+                    "handled this outbreak better.")
     with col3:
         st.markdown(f"**Why {best_ensemble} won**")
         st.markdown(f"The meta-model weights were **RF {weights['Random Forest']:.2f}**, "
                     f"**XGBoost {weights['XGBoost']:.2f}** and **Linear Regression {weights['Linear Regression']:.2f}**. "
-                    "RF and XGBoost made almost the same mistakes, so the stack mostly followed Linear Regression, "
+                    "RF and XGBoost made almost the same mistakes in the walk-forward years (2016-2023), so the stack mostly followed Linear Regression, "
                     "which can follow a rising outbreak. That is also why Linear Regression alone scored slightly "
                     "better.")
 
