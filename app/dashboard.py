@@ -183,11 +183,13 @@ def predict_next_week(model_name):
 @st.cache_data
 def test_period_predictions():
     """Final test (target weeks 2024-2026), the same rows as notebooks 05-08:
-    actual cases and the predictions of persistence, Random Forest, XGBoost and Stacking."""
+    actual cases and the predictions of persistence, Linear Regression, Random Forest, XGBoost and Stacking."""
     test = pd.read_csv(TEST_PATH, parse_dates=["start_date", "target_date"])
     test = test[~(test["is_imputed"] | test["target_imputed"])].reset_index(drop=True)  # leave out interpolated weeks
     test["actual"] = test[config["target"]]
     test["Persistence"] = test["current_week_cases"].astype(float)
+    # stacking base model, not clipped (as in notebooks 04 and 07)
+    test["Linear Regression"] = models["Linear Regression"].predict(test[FEATURES])
     for name in ENSEMBLES:
         test[name] = predict_with(name, test)
     return test
@@ -204,7 +206,7 @@ def score_table(test, rows=None):
     return table
 
 
-TEST_MODELS = ["Persistence", "Random Forest", "XGBoost", "Stacking"]
+TEST_MODELS = ["Persistence", "Linear Regression", "Random Forest", "XGBoost", "Stacking"]
 
 
 # ---------------------------------------------------------------- chart helpers
@@ -651,4 +653,6 @@ chronological split.
                         f"gets a perfect score on the copied week. The table re-scores the same predictions without the "
                         f"rows that use a duplicated week ({sensitivity['rows']:,} of {len(test):,} rows remain). "
                         "The official test results above include all rows.")
-            st.dataframe(pd.DataFrame(sensitivity["scores"]).T.loc[TEST_MODELS].round(2), width="stretch")
+            sensitivity_scores = pd.DataFrame(sensitivity["scores"]).T
+            st.dataframe(sensitivity_scores.loc[[m for m in TEST_MODELS if m in sensitivity_scores.index]].round(2),
+                         width="stretch")
