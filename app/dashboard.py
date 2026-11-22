@@ -228,19 +228,31 @@ with tab_compare:
     best_overall = test_scores["MAE"].idxmin()
     best_ensemble = ens["MAE"].idxmin()
 
-    st.subheader("Which model predicts best?")
-    st.markdown(f"Scored on **{len(test):,} district-weeks from 2024-2026** that the models never saw. "
-                "**MAE** = average error in cases per week (lower is better).")
+    weights = stack_results["meta_weights"]
+    by_year = pd.DataFrame({
+        str(year): {name: mean_absolute_error(part["actual"], part[name]) for name in TEST_MODELS}
+        for year, part in test.groupby(test["target_date"].dt.year)}).T
+    rf_wins = ens.loc["Random Forest", "MAE"] < ens.loc["XGBoost", "MAE"]
+    bag_winner, bag_loser = ("Random Forest (bagging)", "XGBoost (boosting)") if rf_wins else \
+        ("XGBoost (boosting)", "Random Forest (bagging)")
+
+    st.subheader("Which ensemble predicts dengue cases best?")
+    st.success(f"**Answer: {best_ensemble} is the best ensemble** (lowest error on unseen 2024-2026 data), "
+               f"and **{bag_winner} beats {bag_loser}**.")
+    st.markdown(f"All models were trained on 2007-2023 and tested on **{len(test):,} district-weeks from 2024-2026** "
+                "that they never saw. **MAE** = average prediction error in cases per week: **lower is better**.")
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Best ensemble", best_ensemble, f"MAE {ens.loc[best_ensemble, 'MAE']:.2f}", delta_color="off")
+    col1.metric("🏆 Best ensemble", best_ensemble, f"MAE {ens.loc[best_ensemble, 'MAE']:.2f}", delta_color="off")
     col2.metric("Bagging vs boosting",
                 f"RF {ens.loc['Random Forest', 'MAE']:.2f} vs XGB {ens.loc['XGBoost', 'MAE']:.2f}",
-                "Random Forest better" if ens.loc["Random Forest", "MAE"] < ens.loc["XGBoost", "MAE"]
-                else "XGBoost better", delta_color="off")
-    col3.metric("Best single model", best_overall, f"MAE {test_scores.loc[best_overall, 'MAE']:.2f}",
+                f"{bag_winner.split(' (')[0]} wins", delta_color="off")
+    col3.metric("Best single model (reference)", best_overall, f"MAE {test_scores.loc[best_overall, 'MAE']:.2f}",
                 delta_color="off")
 
+    # ------------------------------------------------ 1. results
+    st.divider()
+    st.markdown("### 1. Results: comparing the models")
     left, right = st.columns([3, 2])
     with left:
         order = test_scores.sort_values("MAE").index
@@ -248,39 +260,53 @@ with tab_compare:
                                marker_color=[MODEL_COLORS[name] for name in order],
                                text=[f"{v:.2f}" for v in test_scores.loc[order, "MAE"]], textposition="outside",
                                textfont_color=INK, hovertemplate="%{x}: %{y:.2f}<extra></extra>"))
-        fig.add_hline(y=test_scores.loc["Persistence", "MAE"], line_dash="dash", line_width=1, line_color=MUTED_INK)
-        fig.update_layout(title="Test MAE (dashed line = persistence baseline)", hovermode="closest", showlegend=False)
-        style_chart(fig, "error, cases per week")
+        fig.add_hline(y=test_scores.loc["Persistence", "MAE"], line_dash="dash", line_width=1, line_color=MUTED_INK,
+                      annotation_text="baseline", annotation_position="top right", annotation_font_color=MUTED_INK)
+        fig.update_layout(title="Prediction error on 2024-2026 (lower = better)", hovermode="closest",
+                          showlegend=False)
+        style_chart(fig, "MAE, cases per week")
         fig.update_yaxes(range=[0, test_scores["MAE"].max() * 1.15])
         st.plotly_chart(fig, width="stretch")
     with right:
-        table = test_scores.loc[order, ["MAE", "RMSE", "MAE vs persistence (%)"]].round(2)
+        table = test_scores.loc[order, ["MAE", "RMSE", "MAE vs persistence (%)"]]
         table.insert(0, "type", [MODEL_TYPE[name] for name in order])
-        st.dataframe(table, width="stretch")
-        st.caption("RMSE = like MAE, but big misses count more. Negative % = better than the baseline.")
+        st.markdown("**Scores table** (best value highlighted)")
+        st.dataframe(table.style.format(precision=2)
+                     .highlight_min(subset=["MAE", "RMSE", "MAE vs persistence (%)"], color="#1baf7a55"),
+                     width="stretch")
+        st.caption("RMSE = like MAE, but big misses count more. Negative % = better than the baseline "
+                   "(persistence: next week = this week).")
 
-    # ------------------------------------------------ why
-    st.markdown("#### Why")
-    weights = stack_results["meta_weights"]
-    by_year = pd.DataFrame({
-        str(year): {name: mean_absolute_error(part["actual"], part[name]) for name in TEST_MODELS}
-        for year, part in test.groupby(test["target_date"].dt.year)}).T
-    st.markdown(f"""
-- **Bagging (Random Forest) beat boosting (XGBoost).** XGBoost over-predicted the peaks of the 2026 outbreak
-  (2026 MAE: XGBoost {by_year.loc['2026', 'XGBoost']:.2f}, Random Forest {by_year.loc['2026', 'Random Forest']:.2f}).
-- **In normal years (2024, 2025) the tree models were best**, but in the **2026 outbreak** they did worse than the
-  baseline: trees cannot predict more cases than they have seen before.
-- **Stacking was the best ensemble** and the only one better than the baseline on both MAE and RMSE. Its meta-model
-  gave the weights Random Forest {weights['Random Forest']:.2f}, XGBoost {weights['XGBoost']:.2f} and
-  Linear Regression {weights['Linear Regression']:.2f}: Random Forest and XGBoost made almost the same mistakes, so
-  it mostly followed Linear Regression, which can follow a rising outbreak.
-- **That is why Linear Regression on its own scored slightly better than the stack.**
-""")
-    st.dataframe(by_year[TEST_MODELS].round(2), width="stretch")
-    st.caption("Test MAE by year (2026 data until August).")
+    # ------------------------------------------------ 2. why
+    st.divider()
+    st.markdown("### 2. Why the models perform this way")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"**Why {bag_winner.split(' (')[0]} beat {bag_loser.split(' (')[0]}**")
+        st.markdown(f"XGBoost over-predicted the peaks of the 2026 outbreak. Its 2026 error was "
+                    f"**{by_year.loc['2026', 'XGBoost']:.2f}**, against **{by_year.loc['2026', 'Random Forest']:.2f}** "
+                    "for the Random Forest. Averaging many trees (bagging) made the Random Forest more stable.")
+    with col2:
+        st.markdown("**Why the trees struggled in 2026**")
+        st.markdown("In the normal years 2024 and 2025 the tree models were the best. In the big 2026 outbreak they "
+                    "did worse than the baseline, because **trees cannot predict more cases than they have seen "
+                    "before**.")
+    with col3:
+        st.markdown(f"**Why {best_ensemble} won**")
+        st.markdown(f"The meta-model weights were **RF {weights['Random Forest']:.2f}**, "
+                    f"**XGBoost {weights['XGBoost']:.2f}** and **Linear Regression {weights['Linear Regression']:.2f}**. "
+                    "RF and XGBoost made almost the same mistakes, so the stack mostly followed Linear Regression, "
+                    "which can follow a rising outbreak. That is also why Linear Regression alone scored slightly "
+                    "better.")
 
-    # ------------------------------------------------ actual vs predicted
-    st.markdown(f"#### Actual vs predicted: {district}")
+    st.markdown("**Error by year:** the trees win the normal years, the 2026 outbreak decides the ranking")
+    st.dataframe(by_year[TEST_MODELS].style.format(precision=2).highlight_min(axis=1, color="#1baf7a55"),
+                 width="stretch")
+    st.caption("Test MAE per year; the best model in each year is highlighted. 2026 has data until August.")
+
+    # ------------------------------------------------ 3. actual vs predicted
+    st.divider()
+    st.markdown(f"### 3. See it for yourself: actual vs predicted cases in {district}")
     part = test[test["district"] == district]
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=part["target_date"], y=part["actual"], mode="lines", name="Actual",
@@ -290,13 +316,15 @@ with tab_compare:
                                  line=dict(color=MODEL_COLORS[name], width=1.8),
                                  visible=True if name in ENSEMBLES else "legendonly",
                                  hovertemplate=f"{name}: %{{y:,.0f}}<extra></extra>"))
-    fig.update_layout(title=f"{district}, 2024-2026: actual cases vs one-week-ahead predictions")
+    fig.update_layout(title=f"{district}, 2024-2026: black = actual cases, coloured = model predictions")
     st.plotly_chart(style_chart(fig, "cases per week", height=420), width="stretch")
-    st.caption("Change the reporting area in the sidebar. Click a legend entry to show or hide a model.")
+    st.caption("Change the reporting area in the sidebar. Click a legend entry to show or hide a model. "
+               "Watch the 2026 peak: XGBoost overshoots it most.")
 
-    # ------------------------------------------------ feature importance
+    # ------------------------------------------------ 4. feature importance
     if results_08:
-        st.markdown("#### What the models rely on")
+        st.divider()
+        st.markdown("### 4. What the models rely on: the most recent weeks' cases")
         importance = pd.DataFrame(results_08["feature_importance"]).T.rename(columns={
             f"{name} (test MAE increase)": name for name in ENSEMBLES})[ENSEMBLES]
         order = importance.sort_values("Random Forest").index
@@ -304,8 +332,8 @@ with tab_compare:
         for name in ENSEMBLES:
             fig.add_trace(go.Bar(y=order, x=importance.loc[order, name], orientation="h", name=name,
                                  marker_color=MODEL_COLORS[name], hovertemplate=f"{name}: %{{x:.2f}}<extra></extra>"))
-        fig.update_layout(title="How much the test error grows when a feature is shuffled", barmode="group",
-                          hovermode="closest")
+        fig.update_layout(title="Feature importance: how much the error grows when a feature is shuffled "
+                                "(longer bar = more important)", barmode="group", hovermode="closest")
         style_chart(fig, None, height=460)
         fig.update_xaxes(title="increase in test MAE (cases)", showgrid=True, gridcolor=GRID)
         fig.update_yaxes(showgrid=False)
@@ -317,11 +345,14 @@ with tab_compare:
 # ---------------------------------------------------------------- tab 2: predict next week
 
 with tab_predict:
-    model_name = st.radio("Model", ENSEMBLES, horizontal=True)
+    st.subheader("Predict next week's dengue cases and risk")
+    model_name = st.radio("Choose an ensemble model", ENSEMBLES, horizontal=True,
+                          format_func=lambda name: f"{name} ({MODEL_TYPE[name].split(' (')[0].lower()})"
+                          if name != "Stacking" else "Stacking")
     forecast = predict_next_week(model_name)
     row = forecast.loc[district]
 
-    st.subheader(f"{district}: prediction for the week starting {row['target_date']:%d %b %Y}")
+    st.markdown(f"#### {district}: forecast for the week starting {row['target_date']:%d %b %Y}")
 
     col1, col2, col3 = st.columns(3)
     col1.metric(f"Reported, week of {row['start_date']:%d %b}", f"{row['cases']:,}")
@@ -333,8 +364,8 @@ with tab_predict:
         st.markdown("**Risk level**")
         {"Low": st.success, "Medium": st.warning, "High": st.error}[row["risk"]](f"**{row['risk']} risk**")
 
-    st.markdown("All three models for " + district + ": "
-                + " | ".join(f"**{name}** {row[name]:,}" for name in ENSEMBLES))
+    st.markdown("**The three ensembles compared for " + district + ":** "
+                + " | ".join(f"{name} **{row[name]:,}**" for name in ENSEMBLES) + " cases")
 
     recent = weekly[weekly["district"] == district].tail(12)
     fig = go.Figure()
@@ -357,7 +388,7 @@ with tab_predict:
                "not official outbreak alerts. The data ends in August 2026, so this is a forecast for that time, "
                "not for today.")
 
-    st.markdown("#### All 26 reporting areas")
+    st.markdown(f"#### Risk level for all 26 reporting areas ({model_name})")
     counts = forecast["risk"].value_counts()
     col1, col2, col3 = st.columns(3)
     for col, level in zip([col1, col2, col3], ["High", "Medium", "Low"]):
@@ -373,6 +404,8 @@ with tab_predict:
 # ---------------------------------------------------------------- tab 3: data
 
 with tab_data:
+    st.subheader(f"Dengue Cases in Sri Lanka, {int(weekly['year'].min())}-{int(weekly['year'].max())}")
+    st.caption("Weekly dengue cases reported by the Epidemiology Unit, Ministry of Health, for 26 reporting areas.")
     national = weekly.groupby("start_date", as_index=False)["cases"].sum()
     fig = go.Figure(go.Scatter(x=national["start_date"], y=national["cases"], mode="lines", name="National cases",
                                line=dict(color=INK, width=2), hovertemplate="%{y:,} cases<extra></extra>"))
