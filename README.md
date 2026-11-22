@@ -223,11 +223,10 @@ streamlit run app/dashboard.py
 
 Run the second command from the project folder.
 
-The dashboard has four tabs:
-- **Overview:** national statistics and trends.
-- **Historical trends:** weekly cases per reporting area, with its risk thresholds.
-- **Prediction & risk:** next-week prediction with a choice of **Random Forest, XGBoost or Stacking**, risk level, and a table for all 26 areas.
-- **Model comparison:** validation and test results, actual vs predicted, feature importance and an interpretation.
+The dashboard has three tabs:
+- **Compare models:** 2024-2026 test results for Random Forest (bagging), XGBoost (boosting) and Stacking (with persistence and Linear Regression for reference), which model did best and why, actual vs predicted for a reporting area, and feature importance.
+- **Predict next week:** next-week prediction with a choice of **Random Forest, XGBoost or Stacking**, risk level, and a table for all 26 areas.
+- **Data:** national weekly cases and the weekly cases of one reporting area.
 
 The data ends with the week starting 2026-08-29, so the forecast is for the following week, not for today.
 
