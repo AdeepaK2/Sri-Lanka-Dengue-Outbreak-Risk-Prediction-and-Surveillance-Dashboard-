@@ -4,6 +4,8 @@
 
 Ensemble machine learning (bagging (Random Forest), boosting (XGBoost) and stacking, plus plain bagging, GBM, CatBoost and voting as extra variants) for one-week-ahead forecasting of dengue cases in Sri Lanka, with a Streamlit surveillance dashboard.
 
+**Code repository:** https://github.com/AdeepaK2/Sri-Lanka-Dengue-Outbreak-Risk-Prediction-and-Surveillance-Dashboard-
+
 ## 1. Problem statement and objectives
 
 Dengue is a major public-health problem in Sri Lanka, with large outbreaks such as 2017 and 2026. Weekly case counts are published for each reporting area, and an early estimate of next week's cases can help with planning.
@@ -109,7 +111,7 @@ XGBoost and stacking predictions are clipped at 0. A Random Forest cannot predic
 | Main risk | cannot predict beyond the range of past values | can overfit rare patterns; needs careful settings | **leakage** if the meta-model is trained on predictions for rows the base models were trained on; more complex |
 | In this project | plain bagging and Random Forest (notebook 05) | XGBoost, GBM, CatBoost (notebook 06) | RF + XGBoost + Linear Regression (notebook 07), next to equal-weight voting |
 
-**Bagging vs Random Forest.** Plain bagging trains each tree on a bootstrap sample. A Random Forest also lets each split choose from only a random subset of m features, which makes the trees less alike so that averaging cancels more of their errors. In scikit-learn, `RandomForestRegressor` uses all features by default (`max_features=1.0`), which is plain bagging, so m was chosen on 2023 (m = 5 was best). Notebook 05 also reports the **out-of-bag (OOB) error** (each tree scored on the rows left out of its bootstrap sample; optimistic here, MAE 10.2, because neighbouring weeks are almost copies) and a plot of **error vs number of trees** (the 2023 error stops improving after about 50 trees).
+**Bagging vs Random Forest.** Plain bagging trains each tree on a bootstrap sample. A Random Forest also lets each split choose from only a random subset of m features, which makes the trees less alike so that averaging cancels more of their errors. This is the lecture's variance formula for an average of B correlated trees, ρσ² + (1 − ρ)σ²/B: adding trees only shrinks the second term, so the way to lower the variance further is to lower the correlation ρ between trees, which is what the random feature subsets do. In scikit-learn, `RandomForestRegressor` uses all features by default (`max_features=1.0`), which is plain bagging, so m was chosen on 2023 (m = 5 was best). Notebook 05 also reports the **out-of-bag (OOB) error** (each tree scored on the rows left out of its bootstrap sample; optimistic here, MAE 10.2, because neighbouring weeks are almost copies) and a plot of **error vs number of trees** (the 2023 error stops improving after about 50 trees).
 
 ## 8. Results
 
@@ -215,7 +217,9 @@ The hybrid is **worse than the Random Forest alone** in every test year (2024: 9
 
 ## 12. Research note
 
-Random Forest (Breiman, 2001) uses bagging; XGBoost (Chen & Guestrin, 2016), LightGBM (Ke et al., 2017) and CatBoost (Prokhorenkova et al., 2018) are gradient boosting libraries, and stacking (Wolpert, 1992) combines different models through a meta-model. LightGBM's and CatBoost's main advantages are speed on very large datasets and handling of many categorical features; this dataset is small and has a single categorical feature (`district_code`), so they would be expected to behave like XGBoost, but they were **not tested**. On medium-sized tabular data like this, tree ensembles are usually as accurate as deep learning or better (Grinsztajn et al., 2022).
+Random Forest (Breiman, 2001) uses bagging; XGBoost (Chen & Guestrin, 2016), LightGBM (Ke et al., 2017) and CatBoost (Prokhorenkova et al., 2018) are gradient boosting libraries, and stacking (Wolpert, 1992) combines different models through a meta-model. LightGBM's and CatBoost's main advantages are speed on very large datasets and handling of many categorical features; this dataset is small and has a single categorical feature (`district_code`). **CatBoost and scikit-learn's GBM were tested** (notebook 06, section 8.3 above); LightGBM was not, because, like XGBoost, it uses histogram binning by default, which notebook 06 showed is the main cause of XGBoost's overshoot here.
+
+**Strengths and limitations: tabular vs image/text data.** Tree ensembles (bagging, boosting, stacking of trees) suit **tabular** data like this project's: columns with a clear meaning (last week's cases, the 4-week average), a few thousand to a few hundred thousand rows, mixed scales, and no need to scale or normalise features. They train in seconds, need little tuning and give feature importances that can be explained. On medium-sized tabular data they are usually as accurate as deep learning or better (Grinsztajn et al., 2022). Their limitations show here too: a Random Forest cannot predict outside the range of its training targets, and histogram-based boosting can be rough in rare, extreme ranges. For **image and text** data the situation is reversed: the meaning lies in the arrangement of many raw values (neighbouring pixels, word order), not in single columns. Trees split on one raw value at a time, so they cannot learn edges, shapes or sentence meaning by themselves; deep networks (CNNs, transformers) learn these patterns directly and are the standard choice. Tree ensembles are then mainly useful on top of features extracted by such a network, or for the tabular metadata next to the images or text.
 
 **References**
 - Breiman, L. (2001). Random forests. *Machine Learning*, 45(1), 5-32.
@@ -269,7 +273,10 @@ Run the second command from the project folder.
 
 The dashboard has three tabs:
 - **Compare models:** 2024-2026 test results for Random Forest (bagging), XGBoost (boosting) and Stacking (with persistence and Linear Regression for reference), which model did best and why, actual vs predicted for a reporting area, feature importance, extra variants (plain bagging, GBM, CatBoost, voting) with training time, and the RF + ARIMA hybridization result.
-- **Predict next week:** next-week prediction with a choice of **Random Forest, XGBoost or Stacking**, risk level, and a table for all 26 areas.
+- **Interactive forecasting:** three inner tabs.
+  - *Next week:* the real forecast for the week after the latest data, with a choice of **Random Forest, XGBoost or Stacking**, the risk level, and a table for all 26 areas.
+  - *What-if scenario:* set the last four weeks of cases with sliders (or start from a preset such as a sudden 3x jump) and see every model's forecast and risk level update live, plus a curve showing how each model responds as this week's cases grow (the Random Forest levels off, XGBoost moves in steps and can overshoot, Linear Regression and Stacking follow a straight line).
+  - *Replay a past week:* pick any unseen week of 2024-2026 and compare each model's forecast with what really happened (starts at the area's biggest week, e.g. Colombo, July 2026).
 - **Case history:** national weekly cases and the weekly cases of one reporting area.
 
 The data ends with the week starting 2026-08-29, so the forecast is for the following week, not for today.
