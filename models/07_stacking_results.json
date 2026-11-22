@@ -24,14 +24,14 @@
   "removed_rows": "is_imputed or target_imputed (interpolated weeks)",
   "settings_compared": {
     "Random Forest meta-model (100 trees)": {
-      "training MAE (2016-2022)": 5.607,
-      "MAE": 19.878,
-      "RMSE": 45.656
+      "training MAE (2016-2022)": 5.622,
+      "MAE": 19.674,
+      "RMSE": 44.792
     },
     "Linear Regression meta-model (positive=True)": {
-      "training MAE (2016-2022)": 14.521,
-      "MAE": 18.112,
-      "RMSE": 40.826
+      "training MAE (2016-2022)": 14.528,
+      "MAE": 18.105,
+      "RMSE": 40.714
     }
   },
   "validation_scores": {
@@ -48,16 +48,20 @@
       "RMSE": 40.243
     },
     "Random Forest": {
-      "MAE": 18.139,
-      "RMSE": 42.318
+      "MAE": 17.853,
+      "RMSE": 40.244
     },
     "XGBoost": {
       "MAE": 18.099,
       "RMSE": 41.345
     },
     "Stacking": {
-      "MAE": 18.112,
-      "RMSE": 40.826
+      "MAE": 18.105,
+      "RMSE": 40.714
+    },
+    "Voting": {
+      "MAE": 17.471,
+      "RMSE": 39.683
     }
   },
   "final_train_rows": 21684,
@@ -72,8 +76,8 @@
       "RMSE": 26.953
     },
     "Random Forest": {
-      "MAE": 12.529,
-      "RMSE": 33.631
+      "MAE": 12.481,
+      "RMSE": 33.363
     },
     "XGBoost": {
       "MAE": 13.215,
@@ -82,13 +86,17 @@
     "Stacking": {
       "MAE": 12.18,
       "RMSE": 27.719
+    },
+    "Voting": {
+      "MAE": 12.162,
+      "RMSE": 30.482
     }
   },
   "library_versions": {
     "scikit-learn": "1.9.0",
     "xgboost": "3.4.1",
-    "pandas": "3.0.3",
-    "numpy": "2.4.6"
+    "pandas": "3.0.5",
+    "numpy": "2.5.3"
   },
   "meta_model": "Linear Regression meta-model (positive=True)",
   "meta_model_type": "LinearRegression",
@@ -108,7 +116,7 @@
     "Linear Regression": 1.0072
   },
   "meta_weights_kind": "linear weights (coefficients)",
-  "meta_intercept": -0.3089904107579926,
+  "meta_intercept": -0.3089904107579997,
   "meta_training_years": [
     2016,
     2023

@@ -10,7 +10,7 @@ Uses the files made by the notebooks:
     dataset/processed/test.csv                     test weeks 2024-2026 (notebook 03)
     models/05_random_forest_results.json           Random Forest settings (notebook 05, bagging)
     models/05_final_random_forest_model.joblib     final Random Forest model (notebook 05)
-    models/06_xgboost_results.json                 XGBoost settings (notebook 06, boosting)
+    models/06_xgboost_results.json                 XGBoost settings + GBM / CatBoost scores (notebook 06, boosting)
     models/06_final_xgboost_model.json             final XGBoost model (notebook 06)
     models/07_stacking_results.json                stacking meta-model and its weights (notebook 07)
     models/07_final_linear_regression_model.joblib Linear Regression base model of the stack (notebook 07)
@@ -34,11 +34,13 @@ THRESH_PATH = ROOT / "dataset" / "processed" / "03_risk_thresholds.csv"
 TEST_PATH = ROOT / "dataset" / "processed" / "test.csv"
 RF_RESULTS_PATH = ROOT / "models" / "05_random_forest_results.json"
 RF_MODEL_PATH = ROOT / "models" / "05_final_random_forest_model.joblib"
+XGB_RESULTS_PATH = ROOT / "models" / "06_xgboost_results.json"
 XGB_MODEL_PATH = ROOT / "models" / "06_final_xgboost_model.json"
 STACK_RESULTS_PATH = ROOT / "models" / "07_stacking_results.json"
 LR_MODEL_PATH = ROOT / "models" / "07_final_linear_regression_model.joblib"
 META_MODEL_PATH = ROOT / "models" / "07_stacking_meta_model.joblib"
 RESULTS_08_PATH = ROOT / "models" / "08_final_test_results.json"
+HYBRID_RESULTS_PATH = ROOT / "models" / "09_hybrid_rf_arima_results.json"
 
 ENSEMBLES = ["Random Forest", "XGBoost", "Stacking"]
 TEST_MODELS = ["Persistence", "Linear Regression", "Random Forest", "XGBoost", "Stacking"]
@@ -84,7 +86,9 @@ def load_models():
 
 rf_results = json.loads(RF_RESULTS_PATH.read_text())
 stack_results = json.loads(STACK_RESULTS_PATH.read_text())
+xgb_results = json.loads(XGB_RESULTS_PATH.read_text())
 results_08 = json.loads(RESULTS_08_PATH.read_text()) if RESULTS_08_PATH.exists() else None
+hybrid_results = json.loads(HYBRID_RESULTS_PATH.read_text()) if HYBRID_RESULTS_PATH.exists() else None
 FEATURES = rf_results["features"]
 TARGET = rf_results["target"]
 BASE_MODELS = stack_results["base_models"]   # column order the meta-model was trained with
@@ -279,6 +283,34 @@ with tab_compare:
         st.caption("RMSE = like MAE, but big misses count more. Negative % = better than the baseline "
                    "(persistence: next week = this week).")
 
+    with st.expander("More ensemble variants tested in the notebooks (plain bagging, GBM, CatBoost, voting) "
+                     "and training time"):
+        other = xgb_results.get("other_boosting", {})
+        variants = {
+            "Bagging (all features per split)": (rf_results.get("bagging", {}).get("test_scores"),
+                                                 rf_results.get("bagging", {}).get("fit_seconds_final")),
+            "Random Forest (m = 5 features per split)": (rf_results["test_scores"]["Random Forest"],
+                                                          rf_results.get("fit_seconds_final")),
+            "XGBoost": (xgb_results["test_scores"]["XGBoost"], xgb_results.get("fit_seconds_final")),
+            "GBM (scikit-learn)": (other.get("GBM", {}).get("test_scores"),
+                                   other.get("GBM", {}).get("fit_seconds_final")),
+            "CatBoost": (other.get("CatBoost", {}).get("test_scores"),
+                         other.get("CatBoost", {}).get("fit_seconds_final")),
+            "Stacking (learned weights)": (stack_results["test_scores"]["Stacking"], None),
+            "Voting (equal weights)": (stack_results["test_scores"].get("Voting"), None),
+        }
+        variant_table = pd.DataFrame({name: {"MAE": s["MAE"], "RMSE": s["RMSE"], "training time (s)": sec}
+                                      for name, (s, sec) in variants.items() if s}).T.sort_values("MAE")
+        st.dataframe(variant_table.style.format(precision=2, na_rep="-"), width="stretch")
+        st.markdown("- **Random Forest vs plain bagging:** choosing from 5 random features at each split makes the "
+                    "trees less alike, so their average is slightly better, and training is about twice as fast.\n"
+                    "- **GBM vs XGBoost:** same settings, but GBM tries exact split points. XGBoost rounds every "
+                    "feature into 256 bins, which is very coarse in the rare 1,000+ case range, so it overshoots "
+                    "outbreak peaks. With exact splits XGBoost behaves like GBM.\n"
+                    "- **Voting vs stacking:** equal weights tie on MAE but lose on RMSE, because XGBoost's big "
+                    "overestimates always get a third of the vote. Stacking learned to almost ignore them.")
+        st.caption("Training time of the final model on the computer that ran the notebooks.")
+
     # ------------------------------------------------ 2. why
     st.divider()
     st.markdown("### 2. Why the models perform this way")
@@ -292,7 +324,8 @@ with tab_compare:
         st.markdown("**Why the trees struggled in 2026**")
         st.markdown("In the normal years 2024 and 2025 the tree models were the best. In the big 2026 outbreak both "
                     "did worse than the baseline: the **Random Forest is limited by the range of its training "
-                    "targets**, while **XGBoost sometimes amplified sharp increases and overshot**. Linear Regression "
+                    "targets**, while **XGBoost sometimes amplified sharp increases and overshot** (mostly because of its "
+                    "256-bin histogram splits; GBM with exact splits overshot much less). Linear Regression "
                     "handled this outbreak better.")
     with col3:
         st.markdown(f"**Why {best_ensemble} won**")
@@ -343,6 +376,20 @@ with tab_compare:
         st.plotly_chart(fig, width="stretch")
         st.caption("All models rely mostly on this week's cases and the last few weeks. Stacking uses the previous "
                    "week much more, through Linear Regression.")
+
+    if hybrid_results:
+        st.divider()
+        st.markdown("### 5. Hybridization: Random Forest + ARIMA")
+        hyb = pd.DataFrame(hybrid_results["test_scores"]).T[["MAE", "RMSE"]]
+        col1, col2 = st.columns([2, 3])
+        col1.dataframe(hyb.round(2), width="stretch")
+        col2.markdown(
+            "ARIMA predicts the Random Forest's **next error** from its recent errors, and the hybrid adds that "
+            f"correction. It made the forecasts **worse** (MAE **{hyb.loc['RF + ARIMA', 'MAE']:.2f}** vs "
+            f"**{hyb.loc['Random Forest', 'MAE']:.2f}** for the Random Forest alone). The Random Forest's errors are "
+            f"almost unrelated from week to week (median lag-1 autocorrelation "
+            f"**{hybrid_results['lag1_autocorrelation_2023_median']:.2f}**), so ARIMA has no pattern to learn and "
+            "its corrections mostly add noise. See notebook 09.")
 
 
 # ---------------------------------------------------------------- tab 2: predict next week

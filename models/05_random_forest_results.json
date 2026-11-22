@@ -4,7 +4,8 @@
   "ensemble_type": "bagging",
   "params": {
     "n_estimators": 200,
-    "min_samples_leaf": 10
+    "min_samples_leaf": 10,
+    "max_features": 0.5
   },
   "random_state": 42,
   "features": [
@@ -24,22 +25,84 @@
   "validation_year": 2023,
   "removed_rows": "is_imputed or target_imputed (interpolated weeks)",
   "settings_compared": {
-    "default (100 trees)": {
+    "default (100 trees, m = 11)": {
       "training MAE": 3.802,
       "MAE": 18.638,
-      "RMSE": 43.878
+      "RMSE": 43.878,
+      "fit seconds": 5.426
     },
-    "200 trees, min_samples_leaf=10": {
+    "200 trees, min_samples_leaf=10, m = 11": {
       "training MAE": 8.075,
       "MAE": 18.139,
-      "RMSE": 42.318
+      "RMSE": 42.318,
+      "fit seconds": 7.187
     },
-    "200 trees, max_depth=10": {
+    "200 trees, max_depth=10, m = 11": {
       "training MAE": 7.862,
       "MAE": 18.354,
-      "RMSE": 43.42
+      "RMSE": 43.42,
+      "fit seconds": 5.448
+    },
+    "200 trees, min_samples_leaf=10, m = 5 (p/2)": {
+      "training MAE": 8.355,
+      "MAE": 17.853,
+      "RMSE": 40.244,
+      "fit seconds": 3.589
+    },
+    "200 trees, min_samples_leaf=10, m = 3 (sqrt p)": {
+      "training MAE": 8.629,
+      "MAE": 17.943,
+      "RMSE": 40.165,
+      "fit seconds": 2.298
     }
   },
+  "oob": {
+    "MAE": 10.222,
+    "RMSE": 29.157
+  },
+  "error_vs_trees": {
+    "5": {
+      "OOB MAE": 13.28,
+      "validation MAE (2023)": 18.672
+    },
+    "10": {
+      "OOB MAE": 11.269,
+      "validation MAE (2023)": 18.499
+    },
+    "25": {
+      "OOB MAE": 10.475,
+      "validation MAE (2023)": 17.997
+    },
+    "50": {
+      "OOB MAE": 10.309,
+      "validation MAE (2023)": 17.828
+    },
+    "100": {
+      "OOB MAE": 10.242,
+      "validation MAE (2023)": 17.866
+    },
+    "200": {
+      "OOB MAE": 10.222,
+      "validation MAE (2023)": 17.853
+    },
+    "400": {
+      "OOB MAE": 10.211,
+      "validation MAE (2023)": 17.901
+    }
+  },
+  "bagging": {
+    "model": "BaggingRegressor(DecisionTreeRegressor(min_samples_leaf=10), n_estimators=200)",
+    "validation_scores": {
+      "MAE": 18.14,
+      "RMSE": 42.322
+    },
+    "test_scores": {
+      "MAE": 12.529,
+      "RMSE": 33.628
+    },
+    "fit_seconds_final": 8.09
+  },
+  "fit_seconds_final": 3.6,
   "validation_scores": {
     "Persistence": {
       "MAE": 18.169,
@@ -49,9 +112,13 @@
       "MAE": 18.963,
       "RMSE": 43.013
     },
+    "Bagging": {
+      "MAE": 18.14,
+      "RMSE": 42.322
+    },
     "Random Forest": {
-      "MAE": 18.139,
-      "RMSE": 42.318
+      "MAE": 17.853,
+      "RMSE": 40.244
     }
   },
   "final_train_rows": 21684,
@@ -61,14 +128,18 @@
       "MAE": 12.63,
       "RMSE": 29.93
     },
-    "Random Forest": {
+    "Bagging": {
       "MAE": 12.529,
-      "RMSE": 33.631
+      "RMSE": 33.628
+    },
+    "Random Forest": {
+      "MAE": 12.481,
+      "RMSE": 33.363
     }
   },
   "library_versions": {
     "scikit-learn": "1.9.0",
-    "pandas": "3.0.3",
-    "numpy": "2.4.6"
+    "pandas": "3.0.5",
+    "numpy": "2.5.3"
   }
 }

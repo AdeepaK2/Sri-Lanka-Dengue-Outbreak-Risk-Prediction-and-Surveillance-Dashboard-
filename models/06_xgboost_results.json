@@ -7,6 +7,59 @@
     "max_depth": 2,
     "learning_rate": 0.05
   },
+  "fit_seconds_final": 0.15,
+  "other_boosting": {
+    "GBM": {
+      "chosen_setting": "400 rounds, depth 2, lr 0.05",
+      "settings_compared": {
+        "default (100 rounds, depth 3, lr 0.1)": {
+          "MAE": 18.488,
+          "RMSE": 43.094,
+          "fit seconds": 2.633
+        },
+        "300 rounds, depth 3, lr 0.05": {
+          "MAE": 19.002,
+          "RMSE": 43.851,
+          "fit seconds": 7.955
+        },
+        "400 rounds, depth 2, lr 0.05": {
+          "MAE": 18.09,
+          "RMSE": 42.102,
+          "fit seconds": 7.171
+        }
+      },
+      "test_scores": {
+        "MAE": 11.973,
+        "RMSE": 29.028
+      },
+      "fit_seconds_final": 7.58
+    },
+    "CatBoost": {
+      "chosen_setting": "400 rounds, depth 2, lr 0.05",
+      "settings_compared": {
+        "default (1000 rounds, depth 6)": {
+          "MAE": 19.679,
+          "RMSE": 44.831,
+          "fit seconds": 2.165
+        },
+        "500 rounds, depth 4, lr 0.05": {
+          "MAE": 19.067,
+          "RMSE": 42.708,
+          "fit seconds": 0.686
+        },
+        "400 rounds, depth 2, lr 0.05": {
+          "MAE": 17.945,
+          "RMSE": 41.051,
+          "fit seconds": 0.408
+        }
+      },
+      "test_scores": {
+        "MAE": 12.892,
+        "RMSE": 37.925
+      },
+      "fit_seconds_final": 0.43
+    }
+  },
   "random_state": 42,
   "features": [
     "current_week_cases",
@@ -70,7 +123,8 @@
   },
   "library_versions": {
     "xgboost": "3.4.1",
-    "pandas": "3.0.3",
-    "numpy": "2.4.6"
+    "catboost": "1.2.10",
+    "pandas": "3.0.5",
+    "numpy": "2.5.3"
   }
 }

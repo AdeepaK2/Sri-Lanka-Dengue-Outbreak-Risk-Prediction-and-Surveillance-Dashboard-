@@ -1,0 +1,64 @@
+{
+  "created_by": "notebooks analysis/09_hybrid_rf_arima.ipynb",
+  "note": "Hybridization extension (lecture hands-on point). Not part of the main bagging vs boosting vs stacking comparison.",
+  "arima_order": [
+    1,
+    0,
+    0
+  ],
+  "arima_fitted_on": "2023 out-of-sample Random Forest errors (Random Forest trained on 2007-2022)",
+  "test_rows": 3508,
+  "test_scores": {
+    "Persistence": {
+      "MAE": 12.63,
+      "RMSE": 29.93,
+      "MAE vs persistence (%)": 0.0,
+      "RMSE vs persistence (%)": 0.0
+    },
+    "Random Forest": {
+      "MAE": 12.481,
+      "RMSE": 33.363,
+      "MAE vs persistence (%)": -1.174,
+      "RMSE vs persistence (%)": 11.473
+    },
+    "RF + ARIMA": {
+      "MAE": 12.797,
+      "RMSE": 34.162,
+      "MAE vs persistence (%)": 1.321,
+      "RMSE vs persistence (%)": 14.14
+    }
+  },
+  "mae_by_group": {
+    "2024": {
+      "rows": 1352.0,
+      "Persistence MAE": 10.454,
+      "Random Forest MAE": 9.557,
+      "RF + ARIMA MAE": 9.763
+    },
+    "2025": {
+      "rows": 1352.0,
+      "Persistence MAE": 8.681,
+      "Random Forest MAE": 8.188,
+      "RF + ARIMA MAE": 8.383
+    },
+    "2026": {
+      "rows": 804.0,
+      "Persistence MAE": 22.928,
+      "Random Forest MAE": 24.618,
+      "RF + ARIMA MAE": 25.32
+    },
+    "current week > 500": {
+      "rows": 37.0,
+      "Persistence MAE": 169.081,
+      "Random Forest MAE": 188.49,
+      "RF + ARIMA MAE": 202.724
+    },
+    "current week <= 500": {
+      "rows": 3471.0,
+      "Persistence MAE": 10.962,
+      "Random Forest MAE": 10.605,
+      "RF + ARIMA MAE": 10.772
+    }
+  },
+  "lag1_autocorrelation_2023_median": 0.009846463755888653
+}

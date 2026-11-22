@@ -14,6 +14,7 @@
   "random_forest_params": {
     "n_estimators": 200,
     "min_samples_leaf": 10,
+    "max_features": 0.5,
     "random_state": 42
   },
   "xgboost_params": {
@@ -36,10 +37,10 @@
       "RMSE vs persistence (%)": 0.0
     },
     "Random Forest": {
-      "MAE": 12.529,
-      "RMSE": 33.631,
-      "MAE vs persistence (%)": -0.797,
-      "RMSE vs persistence (%)": 12.367
+      "MAE": 12.481,
+      "RMSE": 33.363,
+      "MAE vs persistence (%)": -1.174,
+      "RMSE vs persistence (%)": 11.473
     },
     "XGBoost": {
       "MAE": 13.215,
@@ -58,33 +59,33 @@
     "2024": {
       "mean weekly cases": 37.143,
       "Persistence MAE": 10.454,
-      "Random Forest MAE": 9.529,
+      "Random Forest MAE": 9.557,
       "XGBoost MAE": 9.473,
       "Stacking MAE": 10.237,
       "Persistence RMSE": 21.146,
-      "Random Forest RMSE": 18.734,
+      "Random Forest RMSE": 19.002,
       "XGBoost RMSE": 20.621,
       "Stacking RMSE": 19.654
     },
     "2025": {
       "mean weekly cases": 37.573,
       "Persistence MAE": 8.681,
-      "Random Forest MAE": 8.313,
+      "Random Forest MAE": 8.188,
       "XGBoost MAE": 8.27,
       "Stacking MAE": 8.626,
       "Persistence RMSE": 15.199,
-      "Random Forest RMSE": 15.046,
+      "Random Forest RMSE": 14.694,
       "XGBoost RMSE": 14.766,
       "Stacking RMSE": 14.783
     },
     "2026": {
       "mean weekly cases": 98.864,
       "Persistence MAE": 22.928,
-      "Random Forest MAE": 24.665,
+      "Random Forest MAE": 24.618,
       "XGBoost MAE": 27.825,
       "Stacking MAE": 21.425,
       "Persistence RMSE": 52.613,
-      "Random Forest RMSE": 62.961,
+      "Random Forest RMSE": 62.342,
       "XGBoost RMSE": 74.967,
       "Stacking RMSE": 48.325
     }
@@ -92,16 +93,16 @@
   "base_model_test_error_correlation": {
     "Random Forest": {
       "Random Forest": 1.0,
-      "XGBoost": 0.649,
-      "Linear Regression": 0.774
+      "XGBoost": 0.722,
+      "Linear Regression": 0.827
     },
     "XGBoost": {
-      "Random Forest": 0.649,
+      "Random Forest": 0.722,
       "XGBoost": 1.0,
       "Linear Regression": 0.763
     },
     "Linear Regression": {
-      "Random Forest": 0.774,
+      "Random Forest": 0.827,
       "XGBoost": 0.763,
       "Linear Regression": 1.0
     }
@@ -116,10 +117,10 @@
         "RMSE vs persistence (%)": 0.0
       },
       "Random Forest": {
-        "MAE": 12.043,
-        "RMSE": 31.512,
-        "MAE vs persistence (%)": -3.973,
-        "RMSE vs persistence (%)": 7.759
+        "MAE": 12.246,
+        "RMSE": 32.448,
+        "MAE vs persistence (%)": -2.351,
+        "RMSE vs persistence (%)": 10.959
       },
       "XGBoost": {
         "MAE": 12.807,
@@ -137,79 +138,79 @@
   },
   "feature_importance": {
     "current_week_cases": {
-      "Random Forest (impurity)": 0.905,
+      "Random Forest (impurity)": 0.455,
       "XGBoost (gain)": 0.672,
-      "Random Forest (test MAE increase)": 39.46,
+      "Random Forest (test MAE increase)": 22.237,
       "XGBoost (test MAE increase)": 29.557,
       "Stacking (test MAE increase)": 33.09
     },
     "moving_average_4_weeks": {
-      "Random Forest (impurity)": 0.055,
+      "Random Forest (impurity)": 0.227,
       "XGBoost (gain)": 0.068,
-      "Random Forest (test MAE increase)": 9.804,
+      "Random Forest (test MAE increase)": 9.798,
       "XGBoost (test MAE increase)": 6.916,
       "Stacking (test MAE increase)": 5.706
     },
     "previous_week_cases": {
-      "Random Forest (impurity)": 0.012,
+      "Random Forest (impurity)": 0.177,
       "XGBoost (gain)": 0.117,
-      "Random Forest (test MAE increase)": 1.168,
+      "Random Forest (test MAE increase)": 4.015,
       "XGBoost (test MAE increase)": 6.509,
       "Stacking (test MAE increase)": 20.576
     },
+    "previous_2_weeks_cases": {
+      "Random Forest (impurity)": 0.062,
+      "XGBoost (gain)": 0.003,
+      "Random Forest (test MAE increase)": -0.009,
+      "XGBoost (test MAE increase)": 0.066,
+      "Stacking (test MAE increase)": 3.433
+    },
     "moving_average_8_weeks": {
-      "Random Forest (impurity)": 0.006,
+      "Random Forest (impurity)": 0.036,
       "XGBoost (gain)": 0.014,
-      "Random Forest (test MAE increase)": 0.582,
+      "Random Forest (test MAE increase)": 0.568,
       "XGBoost (test MAE increase)": 1.143,
       "Stacking (test MAE increase)": 1.404
     },
+    "previous_3_weeks_cases": {
+      "Random Forest (impurity)": 0.02,
+      "XGBoost (gain)": 0.024,
+      "Random Forest (test MAE increase)": 0.439,
+      "XGBoost (test MAE increase)": 0.496,
+      "Stacking (test MAE increase)": 4.283
+    },
     "seasonal_week_cos": {
-      "Random Forest (impurity)": 0.006,
+      "Random Forest (impurity)": 0.008,
       "XGBoost (gain)": 0.066,
-      "Random Forest (test MAE increase)": 0.108,
+      "Random Forest (test MAE increase)": -0.002,
       "XGBoost (test MAE increase)": 0.09,
       "Stacking (test MAE increase)": -0.031
+    },
+    "weekly_case_change": {
+      "Random Forest (impurity)": 0.008,
+      "XGBoost (gain)": 0.012,
+      "Random Forest (test MAE increase)": 0.212,
+      "XGBoost (test MAE increase)": -0.095,
+      "Stacking (test MAE increase)": 0.788
     },
     "seasonal_week_sin": {
       "Random Forest (impurity)": 0.004,
       "XGBoost (gain)": 0.003,
-      "Random Forest (test MAE increase)": 0.209,
+      "Random Forest (test MAE increase)": 0.172,
       "XGBoost (test MAE increase)": 0.186,
       "Stacking (test MAE increase)": 0.002
     },
-    "weekly_case_change": {
-      "Random Forest (impurity)": 0.003,
-      "XGBoost (gain)": 0.012,
-      "Random Forest (test MAE increase)": 0.059,
-      "XGBoost (test MAE increase)": -0.095,
-      "Stacking (test MAE increase)": 0.788
-    },
-    "previous_3_weeks_cases": {
-      "Random Forest (impurity)": 0.003,
-      "XGBoost (gain)": 0.024,
-      "Random Forest (test MAE increase)": 0.417,
-      "XGBoost (test MAE increase)": 0.496,
-      "Stacking (test MAE increase)": 4.283
-    },
-    "previous_2_weeks_cases": {
-      "Random Forest (impurity)": 0.003,
-      "XGBoost (gain)": 0.003,
-      "Random Forest (test MAE increase)": 0.225,
-      "XGBoost (test MAE increase)": 0.066,
-      "Stacking (test MAE increase)": 3.433
-    },
     "seasonal_cases_previous_52_weeks": {
-      "Random Forest (impurity)": 0.003,
+      "Random Forest (impurity)": 0.002,
       "XGBoost (gain)": 0.004,
-      "Random Forest (test MAE increase)": 0.171,
+      "Random Forest (test MAE increase)": 0.104,
       "XGBoost (test MAE increase)": 0.164,
       "Stacking (test MAE increase)": 0.07
     },
     "district_code": {
       "Random Forest (impurity)": 0.001,
       "XGBoost (gain)": 0.016,
-      "Random Forest (test MAE increase)": 0.035,
+      "Random Forest (test MAE increase)": 0.026,
       "XGBoost (test MAE increase)": 0.116,
       "Stacking (test MAE increase)": 0.028
     }
@@ -217,7 +218,7 @@
   "library_versions": {
     "scikit-learn": "1.9.0",
     "xgboost": "3.4.1",
-    "pandas": "3.0.3",
-    "numpy": "2.4.6"
+    "pandas": "3.0.5",
+    "numpy": "2.5.3"
   }
 }

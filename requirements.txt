@@ -5,6 +5,10 @@ numpy
 # Machine learning (ensemble models)
 scikit-learn
 xgboost
+catboost      # notebook 06 comparison only
+
+# Hybrid experiment (notebook 09 only, not needed for the dashboard)
+statsmodels
 
 # Visualization
 matplotlib
