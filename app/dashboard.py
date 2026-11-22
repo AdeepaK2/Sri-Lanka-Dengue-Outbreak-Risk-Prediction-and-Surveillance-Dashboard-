@@ -114,6 +114,18 @@ def predict_with(model_name, X):
     return np.clip(models[model_name].predict(X[FEATURES]), 0, None)
 
 
+FORECAST_MODELS = ["Persistence", "Linear Regression", "Random Forest", "XGBoost", "Stacking"]
+
+
+def predict_all(X):
+    """Persistence, Linear Regression and the three ensembles for every row of X (clipped at 0 for display)."""
+    out = {"Persistence": X["current_week_cases"].to_numpy(dtype=float),
+           "Linear Regression": np.clip(models["Linear Regression"].predict(X[FEATURES]), 0, None)}
+    for name in ENSEMBLES:
+        out[name] = predict_with(name, X)
+    return pd.DataFrame(out, index=X.index)
+
+
 # ---------------------------------------------------------------- features, prediction and risk
 
 @st.cache_data
@@ -222,7 +234,7 @@ st.markdown("**Kularathna G.G.A.S | 224110P | Assignment 1**")
 st.caption("Each model predicts **next week's dengue cases** for each of the 26 reporting areas from the last few "
            "weeks of cases.")
 
-tab_compare, tab_predict, tab_data = st.tabs(["Compare models", "Predict next week", "Case history"])
+tab_compare, tab_predict, tab_data = st.tabs(["Compare models", "Interactive forecasting", "Case history"])
 
 
 # ---------------------------------------------------------------- tab 1: compare models
@@ -324,8 +336,8 @@ with tab_compare:
         st.markdown("**Why the trees struggled in 2026**")
         st.markdown("In the normal years 2024 and 2025 the tree models were the best. In the big 2026 outbreak both "
                     "did worse than the baseline: the **Random Forest is limited by the range of its training "
-                    "targets**, while **XGBoost sometimes amplified sharp increases and overshot** (mostly because of its "
-                    "256-bin histogram splits; GBM with exact splits overshot much less). Linear Regression "
+                    "targets**, while **XGBoost sometimes amplified sharp increases and overshot** (in a controlled test, the "
+                    "same XGBoost with exact splits instead of 256-bin histograms overshot much less). Linear Regression "
                     "handled this outbreak better.")
     with col3:
         st.markdown(f"**Why {best_ensemble} won**")
@@ -395,60 +407,204 @@ with tab_compare:
 # ---------------------------------------------------------------- tab 2: predict next week
 
 with tab_predict:
-    st.subheader("Predict next week's dengue cases and risk")
-    model_name = st.radio("Choose an ensemble model", ENSEMBLES, horizontal=True,
-                          format_func=lambda name: f"{name} ({MODEL_TYPE[name].split(' (')[0].lower()})"
-                          if name != "Stacking" else "Stacking")
-    forecast = predict_next_week(model_name)
-    row = forecast.loc[district]
+    st.subheader("Interactive forecasting")
+    st.caption("Three ways to use the trained models: the real next-week forecast, your own what-if scenario, "
+               "and a replay of any unseen week from 2024-2026. Change the reporting area in the sidebar.")
+    sub_next, sub_whatif, sub_replay = st.tabs(["Next week", "What-if scenario", "Replay a past week"])
 
-    st.markdown(f"#### {district}: forecast for the week starting {row['target_date']:%d %b %Y}")
+    # ------------------------------------------------ next week (real data)
+    with sub_next:
+        st.subheader("Predict next week's dengue cases and risk")
+        model_name = st.radio("Choose an ensemble model", ENSEMBLES, horizontal=True,
+                              format_func=lambda name: f"{name} ({MODEL_TYPE[name].split(' (')[0].lower()})"
+                              if name != "Stacking" else "Stacking")
+        forecast = predict_next_week(model_name)
+        row = forecast.loc[district]
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric(f"Reported, week of {row['start_date']:%d %b}", f"{row['cases']:,}")
-    change = row["predicted_cases"] - row["cases"]
-    col2.metric(f"Predicted ({model_name})", f"{row['predicted_cases']:,}",
-                delta=f"{change:+,} vs latest week" if change != 0 else "same as latest week",
-                delta_color="inverse" if change != 0 else "off")
-    with col3:
-        st.markdown("**Risk level**")
-        {"Low": st.success, "Medium": st.warning, "High": st.error}[row["risk"]](f"**{row['risk']} risk**")
+        st.markdown(f"#### {district}: forecast for the week starting {row['target_date']:%d %b %Y}")
 
-    st.markdown("**The three ensembles compared for " + district + ":** "
-                + " | ".join(f"{name} **{row[name]:,}**" for name in ENSEMBLES) + " cases")
+        col1, col2, col3 = st.columns(3)
+        col1.metric(f"Reported, week of {row['start_date']:%d %b}", f"{row['cases']:,}")
+        change = row["predicted_cases"] - row["cases"]
+        col2.metric(f"Predicted ({model_name})", f"{row['predicted_cases']:,}",
+                    delta=f"{change:+,} vs latest week" if change != 0 else "same as latest week",
+                    delta_color="inverse" if change != 0 else "off")
+        with col3:
+            st.markdown("**Risk level**")
+            {"Low": st.success, "Medium": st.warning, "High": st.error}[row["risk"]](f"**{row['risk']} risk**")
 
-    recent = weekly[weekly["district"] == district].tail(12)
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=recent["start_date"], y=recent["cases"], mode="lines+markers", name="Reported cases",
-                             line=dict(color=INK, width=2), marker=dict(size=8),
-                             hovertemplate="reported: %{y:,}<extra></extra>"))
-    fig.add_trace(go.Scatter(x=[row["start_date"], row["target_date"]], y=[row["cases"], row["predicted_cases"]],
-                             mode="lines+markers", name=f"{model_name} prediction",
-                             line=dict(color=MODEL_COLORS[model_name], width=2, dash="dot"),
-                             marker=dict(size=[0, 11], color=MODEL_COLORS[model_name]),
-                             hovertemplate="predicted: %{y:,}<extra></extra>"))
-    add_threshold_lines(fig, district)
-    fig.update_layout(title=f"{district}: last 12 weeks and next-week prediction")
-    st.plotly_chart(style_chart(fig, "cases per week"), width="stretch")
+        st.markdown("**The three ensembles compared for " + district + ":** "
+                    + " | ".join(f"{name} **{row[name]:,}**" for name in ENSEMBLES) + " cases")
 
-    medium_above = thresholds.loc[district, "medium_above"]
-    high_above = thresholds.loc[district, "high_above"]
-    st.caption(f"Risk for {district}: Low up to {medium_above:.0f} cases, Medium up to {high_above:.0f}, High above "
-               f"{high_above:.0f} (the area's own 75th and 90th percentile, 2007-2023). These are statistical levels, "
-               "not official outbreak alerts. The data ends in August 2026, so this is a forecast for that time, "
-               "not for today.")
+        recent = weekly[weekly["district"] == district].tail(12)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=recent["start_date"], y=recent["cases"], mode="lines+markers", name="Reported cases",
+                                 line=dict(color=INK, width=2), marker=dict(size=8),
+                                 hovertemplate="reported: %{y:,}<extra></extra>"))
+        fig.add_trace(go.Scatter(x=[row["start_date"], row["target_date"]], y=[row["cases"], row["predicted_cases"]],
+                                 mode="lines+markers", name=f"{model_name} prediction",
+                                 line=dict(color=MODEL_COLORS[model_name], width=2, dash="dot"),
+                                 marker=dict(size=[0, 11], color=MODEL_COLORS[model_name]),
+                                 hovertemplate="predicted: %{y:,}<extra></extra>"))
+        add_threshold_lines(fig, district)
+        fig.update_layout(title=f"{district}: last 12 weeks and next-week prediction")
+        st.plotly_chart(style_chart(fig, "cases per week"), width="stretch")
 
-    st.markdown(f"#### Risk level for all 26 reporting areas ({model_name})")
-    counts = forecast["risk"].value_counts()
-    col1, col2, col3 = st.columns(3)
-    for col, level in zip([col1, col2, col3], ["High", "Medium", "Low"]):
-        col.metric(f"{level} risk", counts.get(level, 0))
-    table = forecast.reset_index().sort_values("predicted_cases", ascending=False)
-    st.dataframe(
-        table[["district", "cases", *ENSEMBLES, "risk"]].rename(columns={
-            "district": "reporting area", "cases": f"reported (week of {latest_date:%d %b})",
-            "risk": f"risk ({model_name})"}),
-        hide_index=True, width="stretch", height=950)
+        medium_above = thresholds.loc[district, "medium_above"]
+        high_above = thresholds.loc[district, "high_above"]
+        st.caption(f"Risk for {district}: Low up to {medium_above:.0f} cases, Medium up to {high_above:.0f}, High above "
+                   f"{high_above:.0f} (the area's own 75th and 90th percentile, 2007-2023). These are statistical levels, "
+                   "not official outbreak alerts. The data ends in August 2026, so this is a forecast for that time, "
+                   "not for today.")
+
+        st.markdown(f"#### Risk level for all 26 reporting areas ({model_name})")
+        counts = forecast["risk"].value_counts()
+        col1, col2, col3 = st.columns(3)
+        for col, level in zip([col1, col2, col3], ["High", "Medium", "Low"]):
+            col.metric(f"{level} risk", counts.get(level, 0))
+        table = forecast.reset_index().sort_values("predicted_cases", ascending=False)
+        st.dataframe(
+            table[["district", "cases", *ENSEMBLES, "risk"]].rename(columns={
+                "district": "reporting area", "cases": f"reported (week of {latest_date:%d %b})",
+                "risk": f"risk ({model_name})"}),
+            hide_index=True, width="stretch", height=950)
+
+    # ------------------------------------------------ what-if scenario
+    with sub_whatif:
+        feats = add_features(weekly)
+        area = feats[feats["district"] == district]
+        last_row = area.iloc[-1]
+        recent_cases = area["cases"].to_numpy()[-8:]          # oldest -> newest
+        latest4 = [int(v) for v in recent_cases[-4:]]          # 3 weeks ago, 2 weeks ago, last week, this week
+        slider_max = int(max(200, np.ceil(area["cases"].max() * 1.3 / 50) * 50))
+        labels = ["3 weeks ago", "2 weeks ago", "Last week", "This week"]
+        keys = [f"whatif_{district}_{i}" for i in range(4)]
+
+        def apply_preset():
+            level = max(latest4[-1], 20)
+            preset = st.session_state.get(f"preset_{district}")
+            values = {"Latest reported weeks": latest4,
+                      "Sudden jump (x3)": [latest4[0], latest4[1], level, 3 * level],
+                      "Cases falling": [level, round(0.85 * level), round(0.7 * level), round(0.5 * level)]
+                      }.get(preset, latest4)
+            for key, value in zip(keys, values):
+                st.session_state[key] = int(min(value, slider_max))
+
+        st.markdown(f"**{district}: type in your own last four weeks and see what every model predicts for the "
+                    "week after.** The other inputs (8-week average, same week last year, season) come from the "
+                    "area's latest data.")
+        st.segmented_control("Start from", ["Latest reported weeks", "Sudden jump (x3)", "Cases falling"],
+                             key=f"preset_{district}", default="Latest reported weeks", on_change=apply_preset)
+        cols = st.columns(4)
+        values = []
+        for col, label, key, default in zip(cols, labels, keys, latest4):
+            if key not in st.session_state:
+                st.session_state[key] = int(min(default, slider_max))
+            values.append(col.slider(label, 0, slider_max, key=key, step=1))
+        w3, w2, w1, w0 = values
+
+        def scenario_rows(this_week_values):
+            """Feature rows for the scenario, one per value of 'this week' (the other weeks as set above)."""
+            rows = []
+            for current in this_week_values:
+                row = last_row[FEATURES].copy()
+                row["current_week_cases"] = current
+                row["previous_week_cases"] = w1
+                row["previous_2_weeks_cases"] = w2
+                row["previous_3_weeks_cases"] = w3
+                row["moving_average_4_weeks"] = (current + w1 + w2 + w3) / 4
+                row["moving_average_8_weeks"] = (current + w1 + w2 + w3 + recent_cases[:4].sum()) / 8
+                row["weekly_case_change"] = current - w1
+                rows.append(row)
+            return pd.DataFrame(rows).astype(float).reset_index(drop=True)
+
+        scenario = predict_all(scenario_rows([w0])).iloc[0]
+        cols = st.columns(len(FORECAST_MODELS))
+        for col, name in zip(cols, FORECAST_MODELS):
+            value = int(round(scenario[name]))
+            level = risk_level(value, district)
+            col.metric(name, f"{value:,}", f"{level} risk", delta_color="off")
+
+        left, right = st.columns(2)
+        with left:
+            weeks = [-3, -2, -1, 0]
+            fig = go.Figure(go.Scatter(x=weeks, y=values, mode="lines+markers", name="Your weeks",
+                                       line=dict(color=INK, width=2.5), marker=dict(size=9),
+                                       hovertemplate="%{y:,} cases<extra></extra>"))
+            for name in FORECAST_MODELS[1:]:
+                fig.add_trace(go.Scatter(x=[0, 1], y=[w0, scenario[name]], mode="lines+markers", name=name,
+                                         line=dict(color=MODEL_COLORS[name], width=2, dash="dot"),
+                                         marker=dict(size=[0, 11], color=MODEL_COLORS[name]),
+                                         hovertemplate=f"{name}: %{{y:,.0f}}<extra></extra>"))
+            add_threshold_lines(fig, district)
+            fig.update_layout(title="Your scenario and each model's forecast")
+            style_chart(fig, "cases per week", height=420)
+            fig.update_xaxes(tickvals=[-3, -2, -1, 0, 1],
+                             ticktext=["3 weeks ago", "2 weeks ago", "last week", "this week", "next week"])
+            st.plotly_chart(fig, width="stretch")
+        with right:
+            sweep = np.linspace(0, slider_max, 81)
+            curves = predict_all(scenario_rows(sweep))
+            fig = go.Figure()
+            for name in FORECAST_MODELS:
+                fig.add_trace(go.Scatter(x=sweep, y=curves[name], mode="lines", name=name,
+                                         line=dict(color=MODEL_COLORS[name], width=2.2,
+                                                   dash="dash" if name == "Persistence" else "solid"),
+                                         hovertemplate=f"{name}: %{{y:,.0f}}<extra></extra>"))
+            fig.add_vline(x=w0, line_dash="dot", line_color=MUTED_INK, annotation_text="your 'this week'",
+                          annotation_font_color=MUTED_INK)
+            fig.update_layout(title="How each model responds as 'this week' grows")
+            style_chart(fig, "predicted cases next week", height=420)
+            fig.update_xaxes(title="this week's cases (other weeks fixed)")
+            st.plotly_chart(fig, width="stretch")
+        st.info("**What to look for (right chart):** the **Random Forest levels off**, because it averages "
+                "real past training weeks and cannot go much above them. **XGBoost moves in steps** and can jump far "
+                "above the others when this week is much higher than last week (try *Sudden jump*). "
+                "**Linear Regression and Stacking follow a straight line**, because the stack puts almost all its "
+                "weight on Linear Regression.")
+        st.caption("A what-if scenario is for exploring how the models behave, not a real forecast. Inputs far "
+                   "outside the training data (more than 2,631 cases a week) are guesses for every model.")
+
+    # ------------------------------------------------ replay an unseen week
+    with sub_replay:
+        test = test_period_predictions()
+        area_test = test[test["district"] == district].sort_values("start_date").reset_index(drop=True)
+        options = list(area_test["start_date"].dt.date)
+        peak_week = area_test.loc[area_test["current_week_cases"].idxmax(), "start_date"].date()
+        st.markdown(f"**{district}: go back to any week of the unseen test years and see what each model would have "
+                    "predicted for the following week, and what really happened.** The models were trained on "
+                    "data up to 2023 only.")
+        chosen = st.select_slider("Input week", options=options, value=peak_week,
+                                  format_func=lambda d: d.strftime("%d %b %Y"), key=f"replay_{district}")
+        row = area_test[area_test["start_date"].dt.date == chosen].iloc[0]
+        actual = int(row["actual"])
+        errors = {name: row[name] - actual for name in FORECAST_MODELS}
+        best = min(errors, key=lambda name: abs(errors[name]))
+
+        cols = st.columns(len(FORECAST_MODELS) + 1)
+        cols[0].metric(f"Actual, week of {row['target_date']:%d %b %Y}", f"{actual:,}")
+        for col, name in zip(cols[1:], FORECAST_MODELS):
+            col.metric(name + (" 🏆" if name == best else ""), f"{max(row[name], 0):,.0f}",
+                       f"{errors[name]:+,.0f} vs actual", delta_color="off")
+
+        window = area_test[(area_test["start_date"] >= row["start_date"] - pd.Timedelta(weeks=11)) &
+                           (area_test["start_date"] <= row["start_date"])]
+        fig = go.Figure(go.Scatter(x=list(window["start_date"]) + [row["target_date"]],
+                                   y=list(window["current_week_cases"]) + [actual],
+                                   mode="lines+markers", name="Actual cases", line=dict(color=INK, width=2.5),
+                                   marker=dict(size=8), hovertemplate="actual: %{y:,}<extra></extra>"))
+        for name in FORECAST_MODELS[1:]:
+            fig.add_trace(go.Scatter(x=[row["start_date"], row["target_date"]],
+                                     y=[row["current_week_cases"], max(row[name], 0)], mode="lines+markers",
+                                     name=name, line=dict(color=MODEL_COLORS[name], width=2, dash="dot"),
+                                     marker=dict(size=[0, 11], color=MODEL_COLORS[name]),
+                                     hovertemplate=f"{name}: %{{y:,.0f}}<extra></extra>"))
+        add_threshold_lines(fig, district)
+        fig.update_layout(title=f"{district}: 12 weeks up to {row['start_date']:%d %b %Y} and the forecasts "
+                                "for the next week")
+        st.plotly_chart(style_chart(fig, "cases per week", height=420), width="stretch")
+        st.caption("The slider starts at the area's biggest week in 2024-2026 (for Colombo, July 2026, where "
+                   "XGBoost overshot most). Weeks next to an interpolated week are left out, as in the notebooks.")
 
 
 # ---------------------------------------------------------------- tab 3: data
