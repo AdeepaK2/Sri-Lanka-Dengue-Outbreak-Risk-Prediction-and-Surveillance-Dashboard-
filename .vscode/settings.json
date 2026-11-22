@@ -2,5 +2,7 @@
     "sonarlint.connectedMode.project": {
         "connectionId": "adeepak2",
         "projectKey": "AdeepaK2_Sri-Lanka-Dengue-Outbreak-Risk-Prediction-and-Surveillance-Dashboard"
-    }
+    },
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda"
 }

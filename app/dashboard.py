@@ -218,7 +218,7 @@ st.markdown("**Kularathna G.G.A.S | 224110P | Assignment 1**")
 st.caption("Each model predicts **next week's dengue cases** for each of the 26 reporting areas from the last few "
            "weeks of cases.")
 
-tab_compare, tab_predict, tab_data = st.tabs(["Compare models", "Predict next week", "Data"])
+tab_compare, tab_predict, tab_data = st.tabs(["Compare models", "Predict next week", "Case history"])
 
 
 # ---------------------------------------------------------------- tab 1: compare models
